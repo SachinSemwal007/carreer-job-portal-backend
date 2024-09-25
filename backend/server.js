@@ -279,3 +279,4 @@ app.post("/api/posts/:id/apply", async (req, res) => {
     res.status(500).json({ message: "Error submitting application", error });
   }
 });
+
