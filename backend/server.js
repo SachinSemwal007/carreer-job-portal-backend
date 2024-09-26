@@ -6,7 +6,8 @@ const bodyParser = require("body-parser");
 const User = require("./models/usermodel"); // Import the User model
 const Post = require("./models/postmodel"); //import the Post model
 const dotenv = require('dotenv');
-const cors = require('cors')
+const cors = require('cors');
+const nodemailer = require('nodemailer');
 
 // Load environment variables from .env file
 dotenv.config();
@@ -15,17 +16,49 @@ dotenv.config();
 // Import MongoDB URI and JWT secret from environment variables
 const MONGO_URI = process.env.MONGO_URI;
 const JWT_SECRET = process.env.JWT_SECRET;
+const EMAIL_USER = process.env.EMAIL_USER; // Email for nodemailer
+const EMAIL_PASS = process.env.EMAIL_PASS; // Password for nodemailer
 
 const app = express();
 // Enable CORS globally
 app.use(cors());
 app.use(bodyParser.json()); // Parse JSON request bodies
 
+// Create Nodemailer transporter
+const transporter = nodemailer.createTransport({
+  service: "Gmail", // e.g., Gmail, Outlook, SendGrid
+  auth: {
+    user: EMAIL_USER,
+    pass: EMAIL_PASS,
+  },
+});
+
 // Connect to MongoDB
 mongoose
   .connect(MONGO_URI)
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.error("MongoDB connection error:", err));
+
+  // Function to send verification email
+const sendVerificationEmail = (userEmail, token) => {
+  const verificationLink = `http://localhost:5000/api/verify-email?token=${token}`;
+
+  const mailOptions = {
+    from: EMAIL_USER,
+    to: userEmail,
+    subject: "Email Verification",
+    html: `<p>Please click the link below to verify your email:</p>
+           <a href="${verificationLink}">Verify Email</a>`,
+  };
+
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      console.error("Error sending verification email:", error);
+    } else {
+      console.log("Verification email sent:", info.response);
+    }
+  });
+};
 
 // Sign Up route
 app.post("/api/signup", async (req, res) => {
@@ -38,13 +71,49 @@ app.post("/api/signup", async (req, res) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    // Create new user
-    const newUser = new User({ name, email, password });
+    // Create a new user but set `isVerified` to false initially
+    const newUser = new User({ name, email, password, isVerified: false });
     await newUser.save();
 
-    res.status(201).json({ message: "User created successfully" });
+     // Generate a verification token (you can use JWT)
+     const verificationToken = jwt.sign({ email: newUser.email }, JWT_SECRET, {
+      expiresIn: "1h",
+    });
+
+    // Send verification email
+    sendVerificationEmail(email, verificationToken);
+
+    res.status(201).json({
+      message: "User created successfully. Please verify your email.",
+    });
   } catch (error) {
     res.status(500).json({ message: "Server error", error });
+  }
+});
+
+// Email verification route
+app.get("/api/verify-email", async (req, res) => {
+  const { token } = req.query;
+
+  try {
+    // Verify the token
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const userEmail = decoded.email;
+
+    // Find the user and set `isVerified` to true
+    const user = await User.findOneAndUpdate(
+      { email: userEmail },
+      { isVerified: true },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(400).json({ message: "User not found" });
+    }
+
+    res.status(200).json({ message: "Email verified successfully!" });
+  } catch (error) {
+    res.status(400).json({ message: "Invalid or expired token" });
   }
 });
 
@@ -57,6 +126,11 @@ app.post("/api/login", async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: "User not found" });
+    }
+
+    // Check if the user's email is verified
+    if (!user.isVerified) {
+      return res.status(400).json({ message: "Please verify your email first." });
     }
 
     // Check password
