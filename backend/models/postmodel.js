@@ -17,7 +17,8 @@ const applicantSchema = new mongoose.Schema({
     applicationDate: {
       type: Date,
       default: Date.now, // Automatically set the current date when the application is submitted
-    }
+    },
+    isVerified: { type: Boolean, default: false }
   });
 
 // Define the Job Post schema
