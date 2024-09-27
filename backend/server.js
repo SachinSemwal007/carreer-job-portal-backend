@@ -8,6 +8,8 @@ const Post = require("./models/postmodel"); //import the Post model
 const dotenv = require("dotenv");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
+const crypto = require("crypto"); // For generating the verification token
+const Applicant = require('./models/applicantmodel'); // Adjust the path based on your project structure
 
 // Load environment variables from .env file
 dotenv.config();
@@ -38,15 +40,15 @@ mongoose
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.error("MongoDB connection error:", err));
 
-// Function to send verification email 
-const sendVerificationEmail = (applicantEmail, token) => { 
-  // Use the frontend URL where your Next.js application is hosted 
-  const verificationLink = `http://localhost:3000/email-verified/${token}`; 
+// Function to send verification email
+const sendVerificationEmail = (applicantEmail, token) => {
+  // Use the frontend URL where your Next.js application is hosted
+  const verificationLink = `http://localhost:3000/email-verified/${token}`;
 
   const mailOptions = {
     from: EMAIL_USER,
     to: applicantEmail,
-    subject: "Job Application Email Verification", 
+    subject: "Job Application Email Verification",
     html: `<p>Please click the link below to verify your email for the job application:</p> 
            <a href="${verificationLink}">Verify Email</a>`,
   };
@@ -60,7 +62,6 @@ const sendVerificationEmail = (applicantEmail, token) => {
   });
 };
 
-
 // Sign Up route
 app.post("/api/signup", async (req, res) => {
   const { name, email, password } = req.body;
@@ -72,60 +73,37 @@ app.post("/api/signup", async (req, res) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    // Create a new user 
-    const newUser = new User({ name, email, password }); 
+    // Create a new user
+    const newUser = new User({ name, email, password });
     await newUser.save();
 
-    res.status(201).json({ message: "User created successfully." }); 
+    res.status(201).json({ message: "User created successfully." });
   } catch (error) {
     res.status(500).json({ message: "Server error", error });
   }
 });
 
-// Email verification route for applicants
-app.get("/api/verify-applicant", async (req, res) => { 
+// Backend endpoint: /api/applicant/verify-email
+app.get("/api/applicant/verify-email", async (req, res) => {
   const { token } = req.query;
 
   try {
-    // Verify the token and extract applicant data
-    const decoded = jwt.verify(token, JWT_SECRET);
-    const { name, email, resume, postId } = decoded;
-
-    // Find the job post by ID
-    const jobPost = await Post.findById(postId);
-    if (!jobPost) {
-      return res.status(404).json({ message: "Job post not found" });
+    // Find applicant by the verification token
+    const applicant = await Applicant.findOne({ verificationToken: token });
+    if (!applicant) {
+      return res.status(400).json({ message: "Invalid or expired verification token." });
     }
 
-    // Step 1: Check if the applicants array is empty
-    if (jobPost.applicants.length > 0) {
-      // Step 2: Check if the applicant with the same email already exists
-      const existingApplicant = jobPost.applicants.find(applicant => applicant.email === email);
-      if (existingApplicant) {
-        return res.status(400).json({ message: "Applicant has already been verified." });
-      }
-    }
-
-    // Step 3: Add the new applicant to the applicants array
-    const newApplicant = {
-      name,
-      email,
-      resume,
-      applicationDate: new Date()
-    };
-    jobPost.applicants.push(newApplicant);
-
-    // Step 4: Save the updated job post
-    await jobPost.save();
+    // Mark the applicant as verified
+    applicant.verificationToken = undefined; // Clear the token
+    await applicant.save();
 
     res.status(200).json({ message: "Email verified successfully!" });
   } catch (error) {
-    console.error("Verification error:", error);
-    res.status(400).json({ message: "Invalid or expired token" });
+    console.error("Error during email verification:", error);
+    res.status(500).json({ message: "Server error. Please try again." });
   }
 });
-
-
 
 // Login route
 app.post("/api/login", async (req, res) => {
@@ -170,7 +148,6 @@ app.get("/api/protected", (req, res) => {
     res.status(401).json({ message: "Invalid token" });
   }
 });
-
 
 app.post("/api/createpost", async (req, res) => {
   const { companyName, jobTitle, skillsRequired, experienceRequired, educationalBackground, location, salary, jobDescription, postedDate } = req.body;
@@ -301,7 +278,7 @@ app.put("/api/posts/:id", async (req, res) => {
 // POST route: Add an applicant to a job post by ID
 app.post("/api/posts/:id/apply", async (req, res) => {
   const { name, email, resume } = req.body;
-console.log(req.body)
+
   try {
     // Find the job post by ID
     const jobPost = await Post.findById(req.params.id);
@@ -309,19 +286,19 @@ console.log(req.body)
       return res.status(404).json({ message: "Post not found" });
     }
 
-    // Generate a verification token containing applicant data and job post ID
-    const verificationToken = jwt.sign(
-      { name, email, resume, postId: jobPost._id },
-      JWT_SECRET,
-      { expiresIn: "1h" }
-    );
+    // Add the new applicant to the applicants array directly
+    const newApplicant = {
+      name,
+      email,
+      resume,
+      applicationDate: new Date(),
+    };
+    jobPost.applicants.push(newApplicant);
 
-    // Send verification email to the applicant
-    sendVerificationEmail(email, verificationToken);
+    // Save the updated job post
+    await jobPost.save();
 
-    res.status(201).json({
-      message: "Application submitted successfully. Please verify your email.",
-    });
+    res.status(201).json({ message: "Application submitted successfully." });
   } catch (error) {
     res.status(500).json({ message: "Error submitting application", error });
   }
@@ -339,7 +316,7 @@ app.delete("/api/posts/:postId/applicants/:email", async (req, res) => {
     }
 
     // Find the index of the applicant to be removed
-    const applicantIndex = jobPost.applicants.findIndex(applicant => applicant.email === email);
+    const applicantIndex = jobPost.applicants.findIndex((applicant) => applicant.email === email);
     if (applicantIndex === -1) {
       return res.status(404).json({ message: "Applicant not found" });
     }
@@ -357,6 +334,88 @@ app.delete("/api/posts/:postId/applicants/:email", async (req, res) => {
   }
 });
 
+// Applicant Signup route
+app.post("/api/applicant/signup", async (req, res) => {
+  const { name, email, password, age, resume } = req.body;
+
+  try {
+    // Check if applicant already exists
+    const existingApplicant = await Applicant.findOne({ email });
+    if (existingApplicant) {
+      return res.status(400).json({ message: "Applicant already exists" });
+    }
+
+    // Generate a verification token
+    const verificationToken = crypto.randomBytes(20).toString("hex");
+
+    // Create a new applicant with the verification token
+    const newApplicant = new Applicant({
+      name,
+      email,
+      password,
+      age,
+      resume,
+      verificationToken,
+    });
+    await newApplicant.save();
+
+    // Send verification email
+    const verificationLink = `http://localhost:3000/verify?token=${verificationToken}`;
+    const mailOptions = {
+      from: EMAIL_USER,
+      to: email,
+      subject: "Applicant Email Verification",
+      html: `<p>Please click the link below to verify your email:</p><a href="${verificationLink}">Verify Email</a>`,
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error("Error sending verification email:", error);
+        return res.status(500).json({ message: "Error sending verification email." }); // Add this line
+      } else {
+        console.log("Verification email sent:", info.response);
+      }
+    });
+    
+
+    res.status(201).json({ message: "Applicant created successfully. Please verify your email to log in." });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error });
+  }
+});
+
+// Applicant Login route
+app.post("/api/applicant/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    // Find applicant by email
+    const applicant = await Applicant.findOne({ email });
+    if (!applicant) {
+      return res.status(400).json({ message: "Applicant not found" });
+    }
+
+    // Check if the email is verified by the absence of a verification token
+    if (applicant.verificationToken) {
+      return res.status(403).json({ message: "Please verify your email to log in." });
+    }
+
+    // Check password
+    const isPasswordValid = await applicant.matchPassword(password);
+    if (!isPasswordValid) {
+      return res.status(400).json({ message: "Invalid password" });
+    }
+
+    // Generate a JWT token
+    const token = jwt.sign({ email: applicant.email }, JWT_SECRET, {
+      expiresIn: "1h",
+    });
+
+    res.status(200).json({ message: "Login successful", token });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error });
+  }
+});
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
