@@ -38,16 +38,16 @@ mongoose
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.error("MongoDB connection error:", err));
 
-// Function to send verification email
-const sendVerificationEmail = (applicantEmail, token) => {
-  // Use the frontend URL where your Next.js application is hosted
-  const verificationLink = `http://localhost:3000/email-verified/${token}`;
+// Function to send verification email 
+const sendVerificationEmail = (applicantEmail, token) => { 
+  // Use the frontend URL where your Next.js application is hosted 
+  const verificationLink = `http://localhost:3000/email-verified/${token}`; 
 
   const mailOptions = {
     from: EMAIL_USER,
     to: applicantEmail,
-    subject: "Job Application Email Verification",
-    html: `<p>Please click the link below to verify your email for the job application:</p>
+    subject: "Job Application Email Verification", 
+    html: `<p>Please click the link below to verify your email for the job application:</p> 
            <a href="${verificationLink}">Verify Email</a>`,
   };
 
@@ -72,18 +72,18 @@ app.post("/api/signup", async (req, res) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    // Create a new user
-    const newUser = new User({ name, email, password });
+    // Create a new user 
+    const newUser = new User({ name, email, password }); 
     await newUser.save();
 
-    res.status(201).json({ message: "User created successfully." });
+    res.status(201).json({ message: "User created successfully." }); 
   } catch (error) {
     res.status(500).json({ message: "Server error", error });
   }
 });
 
 // Email verification route for applicants
-app.get("/api/verify-applicant", async (req, res) => {
+app.get("/api/verify-applicant", async (req, res) => { 
   const { token } = req.query;
 
   try {
