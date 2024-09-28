@@ -411,7 +411,7 @@ app.get('/api/applicant/details', async (req, res) => {
 
 // Applicant Signup route
 app.post("/api/applicant/signup", async (req, res) => {
-  const { name, email, password, age, resume } = req.body;
+  const { name, email, password } = req.body;
 
   try {
     // Check if applicant already exists
@@ -428,8 +428,6 @@ app.post("/api/applicant/signup", async (req, res) => {
       name,
       email,
       password,
-      age,
-      resume,
       verificationToken,
     });
     await newApplicant.save();

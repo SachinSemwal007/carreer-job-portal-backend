@@ -6,8 +6,8 @@ const applicantSchema = new mongoose.Schema({
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    age: { type: Number, required: true },
-    resume: { type: String, required: true },
+    age: { type: Number, required: false },
+    resume: { type: String, required: false },
     verificationToken: { type: String }, // Store verification token to track verification status
   });
   
