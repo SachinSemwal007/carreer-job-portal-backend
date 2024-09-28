@@ -9,7 +9,7 @@ const dotenv = require("dotenv");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto"); // For generating the verification token
-const Applicant = require('./models/applicantmodel'); // Adjust the path based on your project structure
+const Applicant = require("./models/applicantmodel"); // Adjust the path based on your project structure
 
 // Load environment variables from .env file
 dotenv.config();
@@ -91,7 +91,9 @@ app.get("/api/applicant/verify-email", async (req, res) => {
     // Find applicant by the verification token
     const applicant = await Applicant.findOne({ verificationToken: token });
     if (!applicant) {
-      return res.status(400).json({ message: "Invalid or expired verification token." });
+      return res
+        .status(400)
+        .json({ message: "Invalid or expired verification token." });
     }
 
     // Mark the applicant as verified
@@ -150,7 +152,17 @@ app.get("/api/protected", (req, res) => {
 });
 
 app.post("/api/createpost", async (req, res) => {
-  const { companyName, jobTitle, skillsRequired, experienceRequired, educationalBackground, location, salary, jobDescription, postedDate } = req.body;
+  const {
+    companyName,
+    jobTitle,
+    skillsRequired,
+    experienceRequired,
+    educationalBackground,
+    location,
+    salary,
+    jobDescription,
+    postedDate,
+  } = req.body;
 
   try {
     // Create new user
@@ -201,7 +213,8 @@ app.get("/api/posts", async (req, res) => {
 
     // Add filters for experienceRequired, educationalBackground, location, and salary if provided
     if (experienceRequired) query.experienceRequired = experienceRequired;
-    if (educationalBackground) query.educationalBackground = educationalBackground;
+    if (educationalBackground)
+      query.educationalBackground = educationalBackground;
     if (location) query.location = location;
     if (salary) query.salary = salary;
 
@@ -246,7 +259,17 @@ app.delete("/api/posts/:id", async (req, res) => {
 
 // PUT route: Update a job post by ID
 app.put("/api/posts/:id", async (req, res) => {
-  const { companyName, jobTitle, skillsRequired, experienceRequired, educationalBackground, location, salary, jobDescription, postedDate } = req.body;
+  const {
+    companyName,
+    jobTitle,
+    skillsRequired,
+    experienceRequired,
+    educationalBackground,
+    location,
+    salary,
+    jobDescription,
+    postedDate,
+  } = req.body;
 
   try {
     const updatedPost = await Post.findByIdAndUpdate(
@@ -269,7 +292,9 @@ app.put("/api/posts/:id", async (req, res) => {
       return res.status(404).json({ message: "Post not found" });
     }
 
-    res.status(200).json({ message: "Post updated successfully", post: updatedPost });
+    res
+      .status(200)
+      .json({ message: "Post updated successfully", post: updatedPost });
   } catch (error) {
     res.status(500).json({ message: "Error updating post", error });
   }
@@ -277,32 +302,38 @@ app.put("/api/posts/:id", async (req, res) => {
 
 // POST route: Add an applicant to a job post by ID
 app.post("/api/posts/:id/apply", async (req, res) => {
-  const { name, email, resume } = req.body;
+  const { name, email, age, resume } = req.body;
+  const postId = req.params.id;
 
   try {
     // Find the job post by ID
-    const jobPost = await Post.findById(req.params.id);
+    const jobPost = await Post.findById(postId);
     if (!jobPost) {
-      return res.status(404).json({ message: "Post not found" });
+      return res.status(404).json({ message: "Job post not found" });
     }
 
-    // Add the new applicant to the applicants array directly
+    // Create a new applicant object
     const newApplicant = {
       name,
       email,
+      age,
       resume,
       applicationDate: new Date(),
     };
+
+    // Add the new applicant to the job post's applicants array
     jobPost.applicants.push(newApplicant);
 
     // Save the updated job post
     await jobPost.save();
 
-    res.status(201).json({ message: "Application submitted successfully." });
+    res.status(201).json({ message: "Application submitted successfully!" });
   } catch (error) {
-    res.status(500).json({ message: "Error submitting application", error });
+    console.error("Error applying for job:", error); // Add detailed error logging
+    res.status(500).json({ message: "Internal server error", error: error.message });
   }
 });
+
 
 // DELETE route: Remove an applicant from a job post
 app.delete("/api/posts/:postId/applicants/:email", async (req, res) => {
@@ -316,7 +347,9 @@ app.delete("/api/posts/:postId/applicants/:email", async (req, res) => {
     }
 
     // Find the index of the applicant to be removed
-    const applicantIndex = jobPost.applicants.findIndex((applicant) => applicant.email === email);
+    const applicantIndex = jobPost.applicants.findIndex(
+      (applicant) => applicant.email === email
+    );
     if (applicantIndex === -1) {
       return res.status(404).json({ message: "Applicant not found" });
     }
@@ -333,6 +366,48 @@ app.delete("/api/posts/:postId/applicants/:email", async (req, res) => {
     res.status(500).json({ message: "Server error", error });
   }
 });
+
+// Sample Express.js endpoint to get applicant details
+
+app.get('/api/applicant/details', async (req, res) => {
+  // Extract the token from the 'Authorization' header
+  const authHeader = req.headers['authorization'];
+
+  if (!authHeader) {
+    return res.status(401).json({ message: 'Authorization token is missing.' });
+  }
+
+  // Split the 'Bearer <token>' string and get the token part
+  const token = authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ message: 'Invalid token format.' });
+  }
+
+  try {
+    // Verify the token
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const email = decoded.email;
+
+    // Find the applicant by email
+    const applicant = await Applicant.findOne({ email });
+    if (!applicant) {
+      return res.status(404).json({ message: 'Applicant not found.' });
+    }
+
+    // Return the applicant details
+    res.status(200).json({
+      name: applicant.name,
+      email: applicant.email,
+      age: applicant.age,
+      resume: applicant.resume,
+    });
+  } catch (error) {
+    console.error('Error verifying token or fetching applicant details:', error);
+    res.status(400).json({ message: 'Invalid or expired token.' });
+  }
+});
+
 
 // Applicant Signup route
 app.post("/api/applicant/signup", async (req, res) => {
@@ -371,14 +446,20 @@ app.post("/api/applicant/signup", async (req, res) => {
     transporter.sendMail(mailOptions, (error, info) => {
       if (error) {
         console.error("Error sending verification email:", error);
-        return res.status(500).json({ message: "Error sending verification email." }); // Add this line
+        return res
+          .status(500)
+          .json({ message: "Error sending verification email." }); // Add this line
       } else {
         console.log("Verification email sent:", info.response);
       }
     });
-    
 
-    res.status(201).json({ message: "Applicant created successfully. Please verify your email to log in." });
+    res
+      .status(201)
+      .json({
+        message:
+          "Applicant created successfully. Please verify your email to log in.",
+      });
   } catch (error) {
     res.status(500).json({ message: "Server error", error });
   }
@@ -397,7 +478,9 @@ app.post("/api/applicant/login", async (req, res) => {
 
     // Check if the email is verified by the absence of a verification token
     if (applicant.verificationToken) {
-      return res.status(403).json({ message: "Please verify your email to log in." });
+      return res
+        .status(403)
+        .json({ message: "Please verify your email to log in." });
     }
 
     // Check password

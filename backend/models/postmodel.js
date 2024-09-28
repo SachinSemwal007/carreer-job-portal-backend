@@ -14,6 +14,10 @@ const applicantSchema = new mongoose.Schema({
       type: String, // URL to the applicant's resume or CV
       required: true,
     },
+    age: {
+      type: Number,
+      required: true,
+    },
     applicationDate: {
       type: Date,
       default: Date.now, // Automatically set the current date when the application is submitted
