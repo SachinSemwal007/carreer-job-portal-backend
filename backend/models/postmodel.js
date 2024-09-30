@@ -1,36 +1,70 @@
 const mongoose = require('mongoose');
+const {Schema}=mongoose
 
+const courseSchema = new Schema({
+  name: { type: String, required: true },
+});
 
-const applicantSchema = new mongoose.Schema({
-    name: {
-      type: String,
-      required: true,
-    },
-    email: {
-      type: String,
-      required: true,
-    },
-    resume: {
-      type: String, // URL to the applicant's resume or CV
-      required: true,
-    },
-    age: {
-      type: Number,
-      required: true,
-    },
-    applicationDate: {
-      type: Date,
-      default: Date.now, // Automatically set the current date when the application is submitted
-    },
-    isVerified: { type: Boolean, default: false }
-  });
+const experienceSchema = new Schema({
+  title: { type: String, required: true },
+  company: { type: String, required: true },
+  years: { type: Number, required: true },
+});
+
+const referenceSchema = new Schema({
+  name: { type: String, required: true },
+  relation: { type: String, required: true },
+  contact: { type: String, required: true },
+});
+
+// Main Post schema
+const appliedJob = new Schema({
+  applicantId: { type: String, required: true }, 
+  firstName: { type: String, required: true },
+  middleName: { type: String },
+  lastName: { type: String, required: true },
+  fhName: { type: String },
+  email: { type: String, required: true },
+  contact: { type: String, required: true },
+  whatsapp: { type: String },
+  gender: { type: String },
+  dob: { type: Date },
+  maritalStatus: { type: String },
+  address: { type: String },
+  pincode: { type: String },
+  country: { type: String },
+  state: { type: String },
+  district: { type: String },
+  isHandicapped: { type: Boolean, default: false },
+  community: { type: String },
+  matriculationYear: { type: Number },
+  matriculationGrade: { type: String },
+  matriculationPercentage: { type: Number },
+  matriculationBoard: { type: String },
+  interYear: { type: Number },
+  interGrade: { type: String },
+  interPercentage: { type: Number },
+  interBoard: { type: String },
+  bachelorYear: { type: Number },
+  bachelorCourse: { type: String },
+  bachelorSpecialization: { type: String },
+  bachelorGrade: { type: String },
+  bachelorPercentage: { type: Number },
+  bachelorUniversity: { type: String },
+  courses: [courseSchema], // Array of embedded course documents
+  experiences: [experienceSchema], // Array of embedded experience documents
+  references: [referenceSchema], // Array of embedded reference documents
+  achievement: { type: String },
+  description: { type: String },
+  passportPhoto: { type: String }, // Assuming this is a URL or file path
+  certification: { type: String }, // Assuming this is a URL or file path
+  signature: { type: String }, // Assuming this is a URL or file path
+  submitted:{type:Boolean},
+  jobId: { type: Schema.Types.ObjectId, ref: "Job" }, // Reference to Job model
+});
 
 // Define the Job Post schema
 const postSchema = new mongoose.Schema({
-  companyName: {
-    type: String,
-    required: true,
-  },
   jobTitle: {
     type: String,
     required: true,
@@ -63,11 +97,11 @@ const postSchema = new mongoose.Schema({
     type: Date,
     default: Date.now, // Automatically add the current date when posting
   },
-  applicants: [applicantSchema], // Array to store applicant details
+  applicants: [appliedJob], // Array to store applicant details
 
 });
 
 // Create the Job Post model
-const JobPost = mongoose.model('JobPost', postSchema);
+const Post = mongoose.model('JobPost', postSchema);
 
-module.exports = JobPost;
+module.exports = Post;

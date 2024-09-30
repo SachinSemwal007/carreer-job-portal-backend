@@ -16,11 +16,18 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  resetPasswordToken: { 
+    type: String,
+  },
+  resetPasswordExpires: { 
+    type: Date,
+  },
   isVerified: { 
     type: Boolean, 
     default: false,
   }
 });
+
 
 // Hash the password before saving the user model
 userSchema.pre('save', async function (next) {
