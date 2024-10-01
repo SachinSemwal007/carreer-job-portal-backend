@@ -73,7 +73,7 @@ const applicantSchema = new mongoose.Schema({
   age: { type: Number, required: false },
   resume: { type: String, required: false },
   verificationToken: { type: String },
-  appliedTo: [appliedJob],
+  appliedPositions: [appliedJob],
   resetPasswordToken: {type: String},
   resetPasswordExpires: {type: Date},
   // Store verification token to track verification status
