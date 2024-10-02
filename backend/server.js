@@ -252,10 +252,10 @@ app.post("/api/createpost", async (req, res) => {
 // GET route: Retrieve all job posts with search, filter, pagination, and sorting
 app.get("/api/posts", async (req, res) => {
   const {
-    page = 1,
+    page = 1, 
     limit = 10,
-    jobTitle,
-    experienceRequired,
+    jobTitle, 
+    experienceRequired, 
     educationalBackground,
     location,
     community,
@@ -877,10 +877,73 @@ app.get("/api/applicant/verify-email/:token", async (req, res) => {
         </body>
         </html>
         `);
+  } 
+}); 
+
+// Change Password Endpoint
+app.post('/api/change-password', async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  const token = req.headers['authorization'];
+
+  if (!token) {
+    console.error('No token provided');
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+
+  try {
+    // Verify the token
+    const decoded = jwt.verify(token.split(' ')[1], JWT_SECRET);
+    const userId = decoded.id;
+
+    // Find the user by ID
+    const user = await Applicant.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Validate current password
+    const isPasswordValid = await user.matchPassword(currentPassword);
+    if (!isPasswordValid) {
+      return res.status(400).json({ message: 'Current password is incorrect' });
+    }
+
+    // Update the user's password (hash the password in a real application)
+    user.password = newPassword; // Make sure to hash the password before saving
+    await user.save();
+
+    return res.status(200).json({ message: 'Password changed successfully.' });
+  } catch (error) {
+    console.error('Error changing password:', error);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+ 
+// Refresh Token Route
+app.post('/api/refresh-token', (req, res) => {
+  const { refreshToken } = req.body;
+
+  if (!refreshToken) {
+    return res.status(401).json({ message: 'Refresh token is required' });
+  }
+
+  try {
+    // Verify the refresh token
+    const decoded = jwt.verify(refreshToken, JWT_SECRET); // Use the same secret used for signing the refresh token
+
+    // Generate a new access token
+    const accessToken = jwt.sign({ id: decoded.id, email: decoded.email }, JWT_SECRET, {
+      expiresIn: '15m', // New access token expiration time
+    });
+
+    res.status(200).json({ accessToken });
+  } catch (error) {
+    console.error('Error refreshing token:', error);
+    res.status(403).json({ message: 'Invalid or expired refresh token' });
   }
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+ 
+const PORT = process.env.PORT || 5000; 
+app.listen(PORT, () => { 
+  console.log(`Server running on port ${PORT}`); 
+}); 
