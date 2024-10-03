@@ -153,93 +153,28 @@ app.get("/api/protected", (req, res) => {
   }
 });
 
+// POST route: Create a new job post
 app.post("/api/createpost", async (req, res) => {
   const {
-    firstName,
-    middleName,
-    lastName,
-    fhName,
-    email,
-    contact,
-    whatsapp,
-    gender,
-    dob,
-    maritalStatus,
-    address,
-    pincode,
-    country,
-    state,
-    district,
-    isHandicapped,
-    community,
-    matriculationYear,
-    matriculationGrade,
-    matriculationPercentage,
-    matriculationBoard,
-    interYear,
-    interGrade,
-    interPercentage,
-    interBoard,
-    bachelorYear,
-    bachelorCourse,
-    bachelorSpecialization,
-    bachelorGrade,
-    bachelorPercentage,
-    bachelorUniversity,
-    courses,
-    experiences,
-    references,
-    achievement,
-    description,
-    passportPhoto,
-    certification,
-    signature,
-    jobId, // Reference to Job model
+    jobTitle,
+    skillsRequired,
+    experienceRequired,
+    educationalBackground,
+    location,
+    salary,
+    jobDescription,
   } = req.body;
 
   try {
     // Create a new job post with the data from the request
     const newPost = new Post({
-      firstName,
-      middleName,
-      lastName,
-      fhName,
-      email,
-      contact,
-      whatsapp,
-      gender,
-      dob,
-      maritalStatus,
-      address,
-      pincode,
-      country,
-      state,
-      district,
-      isHandicapped,
-      community,
-      matriculationYear,
-      matriculationGrade,
-      matriculationPercentage,
-      matriculationBoard,
-      interYear,
-      interGrade,
-      interPercentage,
-      interBoard,
-      bachelorYear,
-      bachelorCourse,
-      bachelorSpecialization,
-      bachelorGrade,
-      bachelorPercentage,
-      bachelorUniversity,
-      courses,
-      experiences,
-      references,
-      achievement,
-      description,
-      passportPhoto,
-      certification,
-      signature,
-      jobId,
+      jobTitle,
+      skillsRequired,
+      experienceRequired,
+      educationalBackground,
+      location,
+      salary,
+      jobDescription,
     });
 
     // Save the new job post
@@ -260,8 +195,7 @@ app.get("/api/posts", async (req, res) => {
     experienceRequired,
     educationalBackground,
     location,
-    community,
-    sort = "desc", // Sorting order for createdAt, default is descending
+    sort = "desc", // Sorting order for postedDate, default is descending
   } = req.query;
 
   try {
@@ -277,19 +211,16 @@ app.get("/api/posts", async (req, res) => {
       query.jobTitle = { $regex: jobTitle, $options: "i" };
     }
 
-    // Add filters for experience, educational background, location, and community if provided
-    if (experienceRequired)
-      query["experiences.jobType"] = {
-        $regex: experienceRequired,
-        $options: "i",
-      };
-    if (educationalBackground)
-      query["bachelorCourse"] = {
-        $regex: educationalBackground,
-        $options: "i",
-      };
-    if (location) query.location = { $regex: location, $options: "i" };
-    if (community) query.community = { $regex: community, $options: "i" };
+    // Add filters for experience, educational background, and location if provided
+    if (experienceRequired) {
+      query.experienceRequired = { $regex: experienceRequired, $options: "i" };
+    }
+    if (educationalBackground) {
+      query.educationalBackground = { $regex: educationalBackground, $options: "i" };
+    }
+    if (location) {
+      query.location = { $regex: location, $options: "i" };
+    }
 
     // Get the total number of posts that match the filters
     const totalPosts = await Post.countDocuments(query);
@@ -299,7 +230,7 @@ app.get("/api/posts", async (req, res) => {
 
     // Retrieve posts with search, filter, pagination, and sorting
     const jobPosts = await Post.find(query)
-      .sort({ createdAt: sort === "asc" ? 1 : -1 }) // Sort by creation date (timestamps)
+      .sort({ postedDate: sort === "asc" ? 1 : -1 }) // Sort by postedDate
       .skip(skip)
       .limit(limitNumber);
 
@@ -332,13 +263,20 @@ app.delete("/api/posts/:id", async (req, res) => {
 
 // PUT route: Update a job post by ID
 app.put("/api/posts/:id", async (req, res) => {
-  const { companyName, jobTitle, skillsRequired, experienceRequired, educationalBackground, location, salary, jobDescription, postedDate } = req.body;
+  const {
+    jobTitle,
+    skillsRequired,
+    experienceRequired,
+    educationalBackground,
+    location,
+    salary,
+    jobDescription,
+  } = req.body;
 
   try {
     const updatedPost = await Post.findByIdAndUpdate(
       req.params.id,
       {
-        companyName,
         jobTitle,
         skillsRequired,
         experienceRequired,
@@ -346,7 +284,6 @@ app.put("/api/posts/:id", async (req, res) => {
         location,
         salary,
         jobDescription,
-        postedDate,
       },
       { new: true } // Return the updated document
     );
