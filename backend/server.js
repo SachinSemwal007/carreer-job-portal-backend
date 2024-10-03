@@ -638,11 +638,11 @@ app.post("/api/applicant/signup", async (req, res) => {
     const verificationToken = crypto.randomBytes(32).toString("hex");
 
     // Create a new applicant
-    const newApplicant = new Applicant({
-      name,
-      email,
-      password,
-      verificationToken,
+    const newApplicant = new Applicant({ 
+      name, 
+      email, 
+      password, 
+      verificationToken, 
     });
 
     // Log the applicant data before saving
@@ -650,49 +650,49 @@ app.post("/api/applicant/signup", async (req, res) => {
 
     await newApplicant.save();
 
-    // Send verification email
+    // Send verification email 
     const verificationLink = `http://localhost:3000/verify/${verificationToken}`;
     const mailOptions = {
       from: "pawsomeadoption620@gmail.com",
       to: email,
       subject: "Email Verification",
       text: `Please verify your email by clicking the following link: ${verificationLink}`,
-    };
-
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
+    }; 
+ 
+    transporter.sendMail(mailOptions, (error, info) => { 
+      if (error) { 
         console.error("Error sending email:", error);
-        return res.status(500).json({ message: "Error sending verification email." });
-      }
+        return res.status(500).json({ message: "Error sending verification email." }); 
+      } 
       console.log("Verification email sent:", info.response);
       res.status(201).json({
-        message: "Applicant created successfully. Please check your email to verify your account.",
+        message: "Applicant created successfully. Please check your email to verify your account.", 
       });
     });
-  } catch (error) {
+  } catch (error) { 
     console.error("Error during signup:", error); // Log the error for debugging
     if (error.name === "ValidationError") {
       // Log each validation error
       for (let field in error.errors) {
-        console.error(`Validation error for ${field}:`, error.errors[field].message);
+        console.error(`Validation error for ${field}:`, error.errors[field].message); 
       }
-      return res.status(400).json({ message: "Validation error", errors: error.errors });
+      return res.status(400).json({ message: "Validation error", errors: error.errors }); 
     }
-    res.status(500).json({ message: "Server error", error });
-  }
-});
-
-// Applicant Login route
-app.post("/api/applicant/login", async (req, res) => {
-  const { email, password } = req.body;
-
-  try {
+    res.status(500).json({ message: "Server error", error }); 
+  } 
+}); 
+ 
+// Applicant Login route 
+app.post("/api/applicant/login", async (req, res) => { 
+  const { email, password } = req.body; 
+ 
+  try { 
     // Find user by email
     const user = await Applicant.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: "User not found" });
-    }
-
+    } 
+ 
     // Log the received password and stored hashed password
     console.log("Received password:", password);
     console.log("Stored hashed password:", user.password);
@@ -700,17 +700,17 @@ app.post("/api/applicant/login", async (req, res) => {
     // Compare passwords
     const isPasswordValid = await user.matchPassword(password);
     console.log("Password match result:", isPasswordValid); // Log the result of password comparison
-
-    if (!isPasswordValid) {
-      return res.status(400).json({ message: "Invalid password" });
-    }
-
-    // Generate a JWT token
+ 
+    if (!isPasswordValid) { 
+      return res.status(400).json({ message: "Invalid password" }); 
+    } 
+ 
+    // Generate a JWT token 
     const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, {
-      expiresIn: "1h",
-    });
-    res.status(200).json({ message: "Login successful", token });
-  } catch (error) {
+      expiresIn: "1h", 
+    }); 
+    res.status(200).json({ message: "Login successful", token }); 
+  } catch (error) { 
     console.error("Server error during login:", error);
     res.status(500).json({ message: "Server error" });
   }
