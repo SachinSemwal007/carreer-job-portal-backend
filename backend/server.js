@@ -14,7 +14,6 @@ const fs = require('fs');
 const { PutObjectCommand ,DeleteObjectCommand } = require('@aws-sdk/client-s3'); // Assuming you are using AWS SDK v3
 const s3Client = require('./s3Client'); // Your configured S3 client
 const upload = require('./uploadMiddleware');
-const Admin = require('./models/Admin');
 
 // Load environment variables from .env file
 dotenv.config();
@@ -949,49 +948,8 @@ app.post("/api/refresh-token", (req, res) => {
   }
 });
 
-
-// Temporary API to add an admin (for testing purposes)
-app.post('/api/admins/add', async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
-    const newAdmin = new Admin({ name, email, password });
-    await newAdmin.save();
-    res.status(201).json({ message: 'Admin created successfully', admin: newAdmin });
-  } catch (error) {
-    console.error('Error adding admin:', error);
-    res.status(500).json({ message: 'Error adding admin', error: error.message });
-  }
-});
-
-
-
-// API to get the list of admins
-app.get('/api/admins', async (req, res) => {
-  try {
-    const admins = await Admin.find().select('-password'); // Exclude the password field
-    res.json(admins);
-  } catch (error) {
-    console.error('Error fetching admins:', error);
-    res.status(500).json({ message: 'Error fetching admins', error: error.message });
-  }
-});
-
-
-
-
-// API to remove an admin
-app.delete('/api/admins/:id', async (req, res) => {
-  try {
-    const adminId = req.params.id;
-    await Admin.findByIdAndDelete(adminId);
-    res.json({ message: 'Admin removed successfully.' });
-  } catch (error) {
-    res.status(500).json({ message: 'Error removing admin' });
-  }
-});
-
  
-const PORT = process.env.PORT || 5000; 
+const PORT = process.env.PORT || 5001; 
 app.listen(PORT, () => { 
   console.log(`Server running on port ${PORT}`); 
 }); 
