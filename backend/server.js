@@ -10,10 +10,10 @@ const cors = require("cors");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto"); // For generating the verification token
 const Applicant = require("./models/applicantmodel"); // Adjust the path based on your project structure
-const fs = require('fs');
-const { PutObjectCommand ,DeleteObjectCommand } = require('@aws-sdk/client-s3'); // Assuming you are using AWS SDK v3
-const s3Client = require('./s3Client'); // Your configured S3 client
-const upload = require('./uploadMiddleware');
+const fs = require("fs");
+const { PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3"); // Assuming you are using AWS SDK v3
+const s3Client = require("./s3Client"); // Your configured S3 client
+const upload = require("./uploadMiddleware");
 
 // Load environment variables from .env file
 dotenv.config();
@@ -95,7 +95,9 @@ app.get("/api/applicant/verify-email", async (req, res) => {
     // Find applicant by the verification token
     const applicant = await Applicant.findOne({ verificationToken: token });
     if (!applicant) {
-      return res.status(400).json({ message: "Invalid or expired verification token." });
+      return res
+        .status(400)
+        .json({ message: "Invalid or expired verification token." });
     }
 
     // Mark the applicant as verified
@@ -216,7 +218,10 @@ app.get("/api/posts", async (req, res) => {
       query.experienceRequired = { $regex: experienceRequired, $options: "i" };
     }
     if (educationalBackground) {
-      query.educationalBackground = { $regex: educationalBackground, $options: "i" };
+      query.educationalBackground = {
+        $regex: educationalBackground,
+        $options: "i",
+      };
     }
     if (location) {
       query.location = { $regex: location, $options: "i" };
@@ -292,449 +297,381 @@ app.put("/api/posts/:id", async (req, res) => {
       return res.status(404).json({ message: "Post not found" });
     }
 
-    res.status(200).json({ message: "Post updated successfully", post: updatedPost });
+    res
+      .status(200)
+      .json({ message: "Post updated successfully", post: updatedPost });
   } catch (error) {
     res.status(500).json({ message: "Error updating post", error });
   }
 });
 
-//Post route to apply for a job
-// app.post("/api/posts/:id/apply", upload.fields([
-//   { name: 'passportPhoto', maxCount: 1 },
-//   { name: 'certification', maxCount: 1 },
-//   { name: 'signature', maxCount: 1 }
-// ]), async (req, res) => {
-//   const postId = req.params.id;
-//   const files = req.files;
+//apply for a job
+app.post(
+  "/api/posts/:id/apply",
+  upload.fields([
+    { name: "passportPhoto", maxCount: 1 },
+    { name: "certification", maxCount: 1 },
+    { name: "signature", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    const session = await mongoose.startSession(); // Start a session for transactions
+    session.startTransaction(); // Begin transaction
 
-//   try {
-//     // Parse applicationData from the request body
-//     const applicationData = JSON.parse(req.body.applicationData);
-//     const { submitted } = req.body;
+    try {
+      const postId = req.params.id;
+      const files = req.files;
 
-//     // Find the job post by ID
-//     const jobPost = await Post.findById(postId);
-//     if (!jobPost) {
-//       return res.status(404).json({ message: "Job post not found" });
-//     }
+      // Parse applicationData from the request body
+      const applicationData = JSON.parse(req.body.applicationData);
+      const { submitted } = req.body;
 
-//     // Ensure the `applicants` array exists
-//     if (!jobPost.applicants) {
-//       jobPost.applicants = [];
-//     }
+      // Find the job post by ID
+      const jobPost = await Post.findById(postId).session(session);
+      if (!jobPost) {
+        return res.status(404).json({ message: "Job post not found" });
+      }
 
-//     // Extract required fields from applicationData
-//     const { applicantId, firstName, lastName, email, contact, courses, experiences, references } = applicationData;
+      // Extract required fields from applicationData
+      const {
+        applicantId,
+        firstName,
+        lastName,
+        email,
+        contact,
+        courses,
+        experiences,
+        references,
+      } = applicationData;
 
-//     // Check if all required fields are present
-//     if (!applicantId || !firstName || !lastName || !email || !contact) {
-//       return res.status(400).json({ message: "All required fields (applicantId, firstName, lastName, email, contact) must be provided." });
-//     }
+      // Check if all required fields are present
+      if (!applicantId || !firstName || !lastName || !email || !contact) {
+        return res.status(400).json({
+          message:
+            "All required fields (applicantId, firstName, lastName, email, contact) must be provided.",
+        });
+      }
 
-//     // Find the applicant by their ID
-//     const applicant = await Applicant.findById(applicantId);
-//     if (!applicant) {
-//       return res.status(404).json({ message: "Applicant not found" });
-//     }
+      // Find the applicant by their ID
+      const applicant = await Applicant.findById(applicantId).session(session);
+      if (!applicant) {
+        return res.status(404).json({ message: "Applicant not found" });
+      }
 
-//     // Upload files to S3 (if any) and obtain URLs
-//     const uploadToS3 = async (file) => {
-//       const fileContent = fs.readFileSync(file.path);
-//       const params = {
-//         Bucket: process.env.S3_BUCKET_NAME,
-//         Key: `${Date.now()}_${file.originalname}`,
-//         Body: fileContent,
-//         ContentType: file.mimetype,
-//       };
-//       await s3Client.send(new PutObjectCommand(params));
-//       return `https://${params.Bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${params.Key}`;
-//     };
-
-//     let passportPhotoUrl = '', certificationUrl = '', signatureUrl = '';
-//     if (files.passportPhoto) {
-//       passportPhotoUrl = await uploadToS3(files.passportPhoto[0]);
-//     }
-//     if (files.certification) {
-//       certificationUrl = await uploadToS3(files.certification[0]);
-//     }
-//     if (files.signature) {
-//       signatureUrl = await uploadToS3(files.signature[0]);
-//     }
-
-//     // Create the new application object, including nested schemas
-//     const newApplication = {
-//       applicantId,
-//       firstName,
-//       middleName: applicationData.middleName,
-//       lastName,
-//       fhName: applicationData.fhName,
-//       email,
-//       contact,
-//       whatsapp: applicationData.whatsapp,
-//       gender: applicationData.gender,
-//       dob: applicationData.dob,
-//       maritalStatus: applicationData.maritalStatus,
-//       address: applicationData.address,
-//       pincode: applicationData.pincode,
-//       country: applicationData.country,
-//       state: applicationData.state,
-//       district: applicationData.district,
-//       isHandicapped: applicationData.isHandicapped,
-//       community: applicationData.community,
-//       matriculationYear: applicationData.matriculationYear,
-//       matriculationGrade: applicationData.matriculationGrade,
-//       matriculationPercentage: applicationData.matriculationPercentage,
-//       matriculationBoard: applicationData.matriculationBoard,
-//       interYear: applicationData.interYear,
-//       interGrade: applicationData.interGrade,
-//       interPercentage: applicationData.interPercentage,
-//       interBoard: applicationData.interBoard,
-//       bachelorYear: applicationData.bachelorYear,
-//       bachelorCourse: applicationData.bachelorCourse,
-//       bachelorSpecialization: applicationData.bachelorSpecialization,
-//       bachelorGrade: applicationData.bachelorGrade,
-//       bachelorPercentage: applicationData.bachelorPercentage,
-//       bachelorUniversity: applicationData.bachelorUniversity,
-//       courses: courses ? courses.map(course => ({ name: course.name })) : [],
-//       experiences: experiences ? experiences.map(exp => ({ title: exp.title, company: exp.company, years: exp.years })) : [],
-//       references: references ? references.map(ref => ({ name: ref.name, relation: ref.relation, contact: ref.contact })) : [],
-//       achievement: applicationData.achievement,
-//       description: applicationData.description,
-//       passportPhoto: passportPhotoUrl,
-//       certification: certificationUrl,
-//       signature: signatureUrl,
-//       submitted: !submitted,
-//       jobId: postId, // Reference to the job post
-//     };
-
-//     // Add the new application to the `applicants` array in the job post
-//     jobPost.applicants.push(newApplication);
-
-//     // Save the updated job post document
-//     await jobPost.save();
-
-//     // Optionally, add the job application to the applicant's `appliedPositions` array
-//     applicant.appliedPositions.push({
-//       postId,
-//       firstName,
-//       lastName,
-//       email,
-//       contact,
-//       applicationDate: new Date(), // Record the application date
-//     });
-//     await applicant.save();
-
-//     res.status(201).json({ message: "Application submitted successfully!" });
-//   } catch (error) {
-//     console.error("Error applying for job:", error);
-//     res.status(500).json({ message: "Internal server error", error: error.message });
-//   } finally {
-//     // Clean up local files
-//     if (files) {
-//       Object.values(files).flat().forEach(file => fs.unlinkSync(file.path));
-//     }
-//   }
-// });
-
-app.post("/api/posts/:id/apply", upload.fields([
-  { name: 'passportPhoto', maxCount: 1 },
-  { name: 'certification', maxCount: 1 },
-  { name: 'signature', maxCount: 1 }
-]), async (req, res) => {
-  const session = await mongoose.startSession(); // Start a session for transactions
-  session.startTransaction(); // Begin transaction
-
-  try {
-    const postId = req.params.id;
-    const files = req.files;
-
-    // Parse applicationData from the request body
-    const applicationData = JSON.parse(req.body.applicationData);
-    const { submitted } = req.body;
-
-    // Find the job post by ID
-    const jobPost = await Post.findById(postId).session(session);
-    if (!jobPost) {
-      return res.status(404).json({ message: "Job post not found" });
-    }
-
-    // Extract required fields from applicationData
-    const { applicantId, firstName, lastName, email, contact, courses, experiences, references } = applicationData;
-
-    // Check if all required fields are present
-    if (!applicantId || !firstName || !lastName || !email || !contact) {
-      return res.status(400).json({ message: "All required fields (applicantId, firstName, lastName, email, contact) must be provided." });
-    }
-
-    // Find the applicant by their ID
-    const applicant = await Applicant.findById(applicantId).session(session);
-    if (!applicant) {
-      return res.status(404).json({ message: "Applicant not found" });
-    }
-
-    // Upload files to S3 (if any) and obtain URLs
-    const uploadToS3 = async (file) => {
-      const fileContent = fs.readFileSync(file.path);
-      const params = {
-        Bucket: process.env.S3_BUCKET_NAME,
-        Key: `${Date.now()}_${file.originalname}`,
-        Body: fileContent,
-        ContentType: file.mimetype,
-      };
-      await s3Client.send(new PutObjectCommand(params));
-      return `https://${params.Bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${params.Key}`;
-    };
-
-    let passportPhotoUrl = '', certificationUrl = '', signatureUrl = '';
-    if (files.passportPhoto) {
-      passportPhotoUrl = await uploadToS3(files.passportPhoto[0]);
-    }
-    if (files.certification) {
-      certificationUrl = await uploadToS3(files.certification[0]);
-    }
-    if (files.signature) {
-      signatureUrl = await uploadToS3(files.signature[0]);
-    }
-
-    // Create the new application object for the job post
-    const newApplicationForJob = {
-      applicantId,
-      firstName,
-      middleName: applicationData.middleName,
-      lastName,
-      fhName: applicationData.fhName,
-      email,
-      contact,
-      whatsapp: applicationData.whatsapp,
-      gender: applicationData.gender,
-      dob: applicationData.dob,
-      maritalStatus: applicationData.maritalStatus,
-      address: applicationData.address,
-      pincode: applicationData.pincode,
-      country: applicationData.country,
-      state: applicationData.state,
-      district: applicationData.district,
-      isHandicapped: applicationData.isHandicapped,
-      community: applicationData.community,
-      matriculationYear: applicationData.matriculationYear,
-      matriculationGrade: applicationData.matriculationGrade,
-      matriculationPercentage: applicationData.matriculationPercentage,
-      matriculationBoard: applicationData.matriculationBoard,
-      interYear: applicationData.interYear,
-      interGrade: applicationData.interGrade,
-      interPercentage: applicationData.interPercentage,
-      interBoard: applicationData.interBoard,
-      bachelorYear: applicationData.bachelorYear,
-      bachelorCourse: applicationData.bachelorCourse,
-      bachelorSpecialization: applicationData.bachelorSpecialization,
-      bachelorGrade: applicationData.bachelorGrade,
-      bachelorPercentage: applicationData.bachelorPercentage,
-      bachelorUniversity: applicationData.bachelorUniversity,
-      courses: courses ? courses.map(course => ({ name: course.name })) : [],
-      experiences: experiences ? experiences.map(exp => ({ title: exp.title, company: exp.company, years: exp.years })) : [],
-      references: references ? references.map(ref => ({ name: ref.name, relation: ref.relation, contact: ref.contact })) : [],
-      achievement: applicationData.achievement,
-      description: applicationData.description,
-      passportPhoto: passportPhotoUrl,
-      certification: certificationUrl,
-      signature: signatureUrl,
-      submitted: !submitted,
-      jobId: postId,
-    };
-
-    // Add the new application to the job post's `applicants` array
-    jobPost.applicants.push(newApplicationForJob);
-    await jobPost.save({ session });
-
-    // Create the new application object for the applicant's `appliedPositions`
-    const newApplicationForApplicant = {
-      postId,
-      applicantId,
-      firstName,
-      middleName: applicationData.middleName,
-      lastName,
-      fhName: applicationData.fhName,
-      email,
-      contact,
-      whatsapp: applicationData.whatsapp,
-      gender: applicationData.gender,
-      dob: applicationData.dob,
-      maritalStatus: applicationData.maritalStatus,
-      address: applicationData.address,
-      pincode: applicationData.pincode,
-      country: applicationData.country,
-      state: applicationData.state,
-      district: applicationData.district,
-      isHandicapped: applicationData.isHandicapped,
-      community: applicationData.community,
-      matriculationYear: applicationData.matriculationYear,
-      matriculationGrade: applicationData.matriculationGrade,
-      matriculationPercentage: applicationData.matriculationPercentage,
-      matriculationBoard: applicationData.matriculationBoard,
-      interYear: applicationData.interYear,
-      interGrade: applicationData.interGrade,
-      interPercentage: applicationData.interPercentage,
-      interBoard: applicationData.interBoard,
-      bachelorYear: applicationData.bachelorYear,
-      bachelorCourse: applicationData.bachelorCourse,
-      bachelorSpecialization: applicationData.bachelorSpecialization,
-      bachelorGrade: applicationData.bachelorGrade,
-      bachelorPercentage: applicationData.bachelorPercentage,
-      bachelorUniversity: applicationData.bachelorUniversity,
-      courses: courses ? courses.map(course => ({ name: course.name })) : [],
-      experiences: experiences ? experiences.map(exp => ({ title: exp.title, company: exp.company, years: exp.years })) : [],
-      references: references ? references.map(ref => ({ name: ref.name, relation: ref.relation, contact: ref.contact })) : [],
-      achievement: applicationData.achievement,
-      description: applicationData.description,
-      passportPhoto: passportPhotoUrl,
-      certification: certificationUrl,
-      signature: signatureUrl,
-      submitted: !submitted,
-      jobId: postId,
-    };
-
-    // Add the application to the applicant's `appliedPositions`
-    applicant.appliedPositions.push(newApplicationForApplicant);
-    await applicant.save({ session });
-
-    // Commit the transaction
-    await session.commitTransaction();
-    session.endSession();
-
-    res.status(201).json({ message: "Application submitted successfully!" });
-  } catch (error) {
-    // Rollback transaction in case of error
-    await session.abortTransaction();
-    session.endSession();
-
-    console.error("Error applying for job:", error);
-    res.status(500).json({ message: "Internal server error", error: error.message });
-  } finally {
-    // Clean up local files
-    if (req.files) {
-      Object.values(req.files).flat().forEach(file => fs.unlinkSync(file.path));
-    }
-  }
-});
-
-
-//put route to edit a applied job
-app.put("/api/posts/:postId/applications/:applicantId", upload.fields([
-  { name: 'passportPhoto', maxCount: 1 },
-  { name: 'certification', maxCount: 1 },
-  { name: 'signature', maxCount: 1 }
-]), async (req, res) => {
-  const { postId, applicantId } = req.params;
-  const { applicationData, submitted } = req.body;
-  const files = req.files;
-
-  try {
-    // Find the job post by ID
-    const jobPost = await Post.findById(postId);
-    if (!jobPost) {
-      return res.status(404).json({ message: "Job post not found" });
-    }
-
-    // Find the application to be edited
-    const applicationIndex = jobPost.applicants.findIndex((app) => app.applicantId.toString() === applicantId);
-    if (applicationIndex === -1) {
-      return res.status(404).json({ message: "Application not found in job post" });
-    }
-
-    // Helper function to upload to S3
-    const uploadToS3 = async (file) => {
-      const fileContent = fs.readFileSync(file.path);
-      const params = {
-        Bucket: process.env.S3_BUCKET_NAME,
-        Key: `${Date.now()}_${file.originalname}`,
-        Body: fileContent,
-        ContentType: file.mimetype,
-      };
-      await s3Client.send(new PutObjectCommand(params));
-      return `https://${params.Bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${params.Key}`;
-    };
-
-    // Helper function to delete from S3
-    const deleteFromS3 = async (url) => {
-      const key = url.split('/').pop();
-      const params = {
-        Bucket: process.env.S3_BUCKET_NAME,
-        Key: key,
-      };
-      await s3Client.send(new DeleteObjectCommand(params));
-    };
-
-    // Update files and delete previous ones if new files are uploaded
-    let passportPhotoUrl = jobPost.applicants[applicationIndex].passportPhoto;
-    let certificationUrl = jobPost.applicants[applicationIndex].certification;
-    let signatureUrl = jobPost.applicants[applicationIndex].signature;
-
-    if (files.passportPhoto) {
-      if (passportPhotoUrl) await deleteFromS3(passportPhotoUrl);
-      passportPhotoUrl = await uploadToS3(files.passportPhoto[0]);
-    }
-    if (files.certification) {
-      if (certificationUrl) await deleteFromS3(certificationUrl);
-      certificationUrl = await uploadToS3(files.certification[0]);
-    }
-    if (files.signature) {
-      if (signatureUrl) await deleteFromS3(signatureUrl);
-      signatureUrl = await uploadToS3(files.signature[0]);
-    }
-
-    // Update the application fields
-    const updatedApplication = {
-      ...jobPost.applicants[applicationIndex], // Keep existing data
-      ...applicationData, // Overwrite with the new data
-      submitted: !!submitted,
-      applicationDate: new Date(),
-      passportPhoto: passportPhotoUrl,
-      certification: certificationUrl,
-      signature: signatureUrl,
-      courses: applicationData.courses?.map((course) => ({ name: course.name })) || jobPost.applicants[applicationIndex].courses,
-      experiences: applicationData.experiences?.map((exp) => ({
-        title: exp.title,
-        company: exp.company,
-        years: exp.years,
-      })) || jobPost.applicants[applicationIndex].experiences,
-      references: applicationData.references?.map((ref) => ({
-        name: ref.name,
-        relation: ref.relation,
-        contact: ref.contact,
-      })) || jobPost.applicants[applicationIndex].references,
-    };
-
-    // Replace the old application data with the updated one
-    jobPost.applicants[applicationIndex] = updatedApplication;
-
-    // Save the updated job post document
-    await jobPost.save();
-
-    // Optionally, update the applicant's `appliedPositions` array
-    const applicant = await Applicant.findById(applicantId);
-    if (applicant) {
-      const applicantApplicationIndex = applicant.appliedPositions.findIndex((app) => app.jobId.toString() === postId);
-      if (applicantApplicationIndex !== -1) {
-        applicant.appliedPositions[applicantApplicationIndex] = {
-          jobId: postId,
-          applicationDate: updatedApplication.applicationDate,
-          submitted: !!submitted,
+      // Upload files to S3 (if any) and obtain URLs
+      const uploadToS3 = async (file) => {
+        const fileContent = fs.readFileSync(file.path);
+        const params = {
+          Bucket: process.env.S3_BUCKET_NAME,
+          Key: `${Date.now()}_${file.originalname}`,
+          Body: fileContent,
+          ContentType: file.mimetype,
         };
-        await applicant.save();
+        await s3Client.send(new PutObjectCommand(params));
+        return `https://${params.Bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${params.Key}`;
+      };
+
+      let passportPhotoUrl = "",
+        certificationUrl = "",
+        signatureUrl = "";
+      if (files.passportPhoto) {
+        passportPhotoUrl = await uploadToS3(files.passportPhoto[0]);
+      }
+      if (files.certification) {
+        certificationUrl = await uploadToS3(files.certification[0]);
+      }
+      if (files.signature) {
+        signatureUrl = await uploadToS3(files.signature[0]);
+      }
+
+      // Create the new application object for the job post
+      const newApplicationForJob = {
+        applicantId,
+        firstName,
+        middleName: applicationData.middleName,
+        lastName,
+        fhName: applicationData.fhName,
+        email,
+        contact,
+        whatsapp: applicationData.whatsapp,
+        gender: applicationData.gender,
+        dob: applicationData.dob,
+        maritalStatus: applicationData.maritalStatus,
+        address: applicationData.address,
+        pincode: applicationData.pincode,
+        country: applicationData.country,
+        state: applicationData.state,
+        district: applicationData.district,
+        isHandicapped: applicationData.isHandicapped,
+        community: applicationData.community,
+        matriculationYear: applicationData.matriculationYear,
+        matriculationGrade: applicationData.matriculationGrade,
+        matriculationPercentage: applicationData.matriculationPercentage,
+        matriculationBoard: applicationData.matriculationBoard,
+        interYear: applicationData.interYear,
+        interGrade: applicationData.interGrade,
+        interPercentage: applicationData.interPercentage,
+        interBoard: applicationData.interBoard,
+        bachelorYear: applicationData.bachelorYear,
+        bachelorCourse: applicationData.bachelorCourse,
+        bachelorSpecialization: applicationData.bachelorSpecialization,
+        bachelorGrade: applicationData.bachelorGrade,
+        bachelorPercentage: applicationData.bachelorPercentage,
+        bachelorUniversity: applicationData.bachelorUniversity,
+        courses: courses
+          ? courses.map((course) => ({ name: course.name }))
+          : [],
+        experiences: experiences
+          ? experiences.map((exp) => ({
+              title: exp.title,
+              company: exp.company,
+              years: exp.years,
+            }))
+          : [],
+        references: references
+          ? references.map((ref) => ({
+              name: ref.name,
+              relation: ref.relation,
+              contact: ref.contact,
+            }))
+          : [],
+        achievement: applicationData.achievement,
+        description: applicationData.description,
+        passportPhoto: passportPhotoUrl,
+        certification: certificationUrl,
+        signature: signatureUrl,
+        submitted: submitted === "true" || submitted === true,
+        jobId: postId,
+      };
+
+      // Add the new application to the job post's `applicants` array
+      jobPost.applicants.push(newApplicationForJob);
+      await jobPost.save({ session });
+
+      // Create the new application object for the applicant's `appliedPositions`
+      const newApplicationForApplicant = {
+        postId,
+        applicantId,
+        firstName,
+        middleName: applicationData.middleName,
+        lastName,
+        fhName: applicationData.fhName,
+        email,
+        contact,
+        whatsapp: applicationData.whatsapp,
+        gender: applicationData.gender,
+        dob: applicationData.dob,
+        maritalStatus: applicationData.maritalStatus,
+        address: applicationData.address,
+        pincode: applicationData.pincode,
+        country: applicationData.country,
+        state: applicationData.state,
+        district: applicationData.district,
+        isHandicapped: applicationData.isHandicapped,
+        community: applicationData.community,
+        matriculationYear: applicationData.matriculationYear,
+        matriculationGrade: applicationData.matriculationGrade,
+        matriculationPercentage: applicationData.matriculationPercentage,
+        matriculationBoard: applicationData.matriculationBoard,
+        interYear: applicationData.interYear,
+        interGrade: applicationData.interGrade,
+        interPercentage: applicationData.interPercentage,
+        interBoard: applicationData.interBoard,
+        bachelorYear: applicationData.bachelorYear,
+        bachelorCourse: applicationData.bachelorCourse,
+        bachelorSpecialization: applicationData.bachelorSpecialization,
+        bachelorGrade: applicationData.bachelorGrade,
+        bachelorPercentage: applicationData.bachelorPercentage,
+        bachelorUniversity: applicationData.bachelorUniversity,
+        courses: courses
+          ? courses.map((course) => ({ name: course.name }))
+          : [],
+        experiences: experiences
+          ? experiences.map((exp) => ({
+              title: exp.title,
+              company: exp.company,
+              years: exp.years,
+            }))
+          : [],
+        references: references
+          ? references.map((ref) => ({
+              name: ref.name,
+              relation: ref.relation,
+              contact: ref.contact,
+            }))
+          : [],
+        achievement: applicationData.achievement,
+        description: applicationData.description,
+        passportPhoto: passportPhotoUrl,
+        certification: certificationUrl,
+        signature: signatureUrl,
+        submitted: submitted === "true" || submitted === true,
+        jobId: postId,
+      };
+
+      // Add the application to the applicant's `appliedPositions`
+      applicant.appliedPositions.push(newApplicationForApplicant);
+      await applicant.save({ session });
+
+      // Commit the transaction
+      await session.commitTransaction();
+      session.endSession();
+
+      res.status(201).json({ message: "Application submitted successfully!" });
+    } catch (error) {
+      // Rollback transaction in case of error
+      await session.abortTransaction();
+      session.endSession();
+
+      console.error("Error applying for job:", error);
+      res
+        .status(500)
+        .json({ message: "Internal server error", error: error.message });
+    } finally {
+      // Clean up local files
+      if (req.files) {
+        Object.values(req.files)
+          .flat()
+          .forEach((file) => fs.unlinkSync(file.path));
       }
     }
+  }
+);
 
-    res.status(200).json({ message: "Application updated successfully!" });
-  } catch (error) {
-    console.error("Error updating application:", error);
-    res.status(500).json({ message: "Internal server error", error: error.message });
-  } finally {
-    // Clean up local files
-    if (files) {
-      Object.values(files).flat().forEach(file => fs.unlinkSync(file.path));
+//put route to edit a applied job
+app.put(
+  "/api/posts/:postId/applications/:applicantId",
+  upload.fields([
+    { name: "passportPhoto", maxCount: 1 },
+    { name: "certification", maxCount: 1 },
+    { name: "signature", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    const { postId, applicantId } = req.params;
+    const { applicationData, submitted } = req.body;
+    const files = req.files;
+
+    try {
+      // Find the job post by ID
+      const jobPost = await Post.findById(postId);
+      if (!jobPost) {
+        return res.status(404).json({ message: "Job post not found" });
+      }
+
+      // Find the application to be edited
+      const applicationIndex = jobPost.applicants.findIndex(
+        (app) => app.applicantId.toString() === applicantId
+      );
+      if (applicationIndex === -1) {
+        return res
+          .status(404)
+          .json({ message: "Application not found in job post" });
+      }
+
+      // Helper function to upload to S3
+      const uploadToS3 = async (file) => {
+        const fileContent = fs.readFileSync(file.path);
+        const params = {
+          Bucket: process.env.S3_BUCKET_NAME,
+          Key: `${Date.now()}_${file.originalname}`,
+          Body: fileContent,
+          ContentType: file.mimetype,
+        };
+        await s3Client.send(new PutObjectCommand(params));
+        return `https://${params.Bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${params.Key}`;
+      };
+
+      // Helper function to delete from S3
+      const deleteFromS3 = async (url) => {
+        const key = url.split("/").pop();
+        const params = {
+          Bucket: process.env.S3_BUCKET_NAME,
+          Key: key,
+        };
+        await s3Client.send(new DeleteObjectCommand(params));
+      };
+
+      // Update files and delete previous ones if new files are uploaded
+      let passportPhotoUrl = jobPost.applicants[applicationIndex].passportPhoto;
+      let certificationUrl = jobPost.applicants[applicationIndex].certification;
+      let signatureUrl = jobPost.applicants[applicationIndex].signature;
+
+      if (files.passportPhoto) {
+        if (passportPhotoUrl) await deleteFromS3(passportPhotoUrl);
+        passportPhotoUrl = await uploadToS3(files.passportPhoto[0]);
+      }
+      if (files.certification) {
+        if (certificationUrl) await deleteFromS3(certificationUrl);
+        certificationUrl = await uploadToS3(files.certification[0]);
+      }
+      if (files.signature) {
+        if (signatureUrl) await deleteFromS3(signatureUrl);
+        signatureUrl = await uploadToS3(files.signature[0]);
+      }
+
+      // Update the application fields
+      const updatedApplication = {
+        ...jobPost.applicants[applicationIndex], // Keep existing data
+        ...applicationData, // Overwrite with the new data
+        submitted: !!submitted,
+        applicationDate: new Date(),
+        passportPhoto: passportPhotoUrl,
+        certification: certificationUrl,
+        signature: signatureUrl,
+        courses:
+          applicationData.courses?.map((course) => ({ name: course.name })) ||
+          jobPost.applicants[applicationIndex].courses,
+        experiences:
+          applicationData.experiences?.map((exp) => ({
+            title: exp.title,
+            company: exp.company,
+            years: exp.years,
+          })) || jobPost.applicants[applicationIndex].experiences,
+        references:
+          applicationData.references?.map((ref) => ({
+            name: ref.name,
+            relation: ref.relation,
+            contact: ref.contact,
+          })) || jobPost.applicants[applicationIndex].references,
+      };
+
+      // Replace the old application data with the updated one
+      jobPost.applicants[applicationIndex] = updatedApplication;
+
+      // Save the updated job post document
+      await jobPost.save();
+
+      // Optionally, update the applicant's `appliedPositions` array
+      const applicant = await Applicant.findById(applicantId);
+      if (applicant) {
+        const applicantApplicationIndex = applicant.appliedPositions.findIndex(
+          (app) => app.jobId.toString() === postId
+        );
+        if (applicantApplicationIndex !== -1) {
+          applicant.appliedPositions[applicantApplicationIndex] = {
+            jobId: postId,
+            applicationDate: updatedApplication.applicationDate,
+            submitted: !!submitted,
+          };
+          await applicant.save();
+        }
+      }
+
+      res.status(200).json({ message: "Application updated successfully!" });
+    } catch (error) {
+      console.error("Error updating application:", error);
+      res
+        .status(500)
+        .json({ message: "Internal server error", error: error.message });
+    } finally {
+      // Clean up local files
+      if (files) {
+        Object.values(files)
+          .flat()
+          .forEach((file) => fs.unlinkSync(file.path));
+      }
     }
   }
-});
+);
 // DELETE route: Remove an applicant from a job post
 app.delete("/api/posts/:postId/applications/:applicantId", async (req, res) => {
   const { postId, applicantId } = req.params;
@@ -747,14 +684,18 @@ app.delete("/api/posts/:postId/applications/:applicantId", async (req, res) => {
     }
 
     // Find the application to be deleted
-    const applicationIndex = jobPost.applicants.findIndex((app) => app.applicantId.toString() === applicantId);
+    const applicationIndex = jobPost.applicants.findIndex(
+      (app) => app.applicantId.toString() === applicantId
+    );
     if (applicationIndex === -1) {
-      return res.status(404).json({ message: "Application not found in job post" });
+      return res
+        .status(404)
+        .json({ message: "Application not found in job post" });
     }
 
     // Helper function to delete from S3
     const deleteFromS3 = async (url) => {
-      const key = url.split('/').pop();
+      const key = url.split("/").pop();
       const params = {
         Bucket: process.env.S3_BUCKET_NAME,
         Key: key,
@@ -764,8 +705,10 @@ app.delete("/api/posts/:postId/applications/:applicantId", async (req, res) => {
 
     // Delete associated files from S3
     const application = jobPost.applicants[applicationIndex];
-    if (application.passportPhoto) await deleteFromS3(application.passportPhoto);
-    if (application.certification) await deleteFromS3(application.certification);
+    if (application.passportPhoto)
+      await deleteFromS3(application.passportPhoto);
+    if (application.certification)
+      await deleteFromS3(application.certification);
     if (application.signature) await deleteFromS3(application.signature);
 
     // Remove the application from the `applicants` array
@@ -777,7 +720,9 @@ app.delete("/api/posts/:postId/applications/:applicantId", async (req, res) => {
     // Optionally, remove the job application from the applicant's `appliedPositions` array
     const applicant = await Applicant.findById(applicantId);
     if (applicant) {
-      const applicantApplicationIndex = applicant.appliedPositions.findIndex((app) => app.jobId.toString() === postId);
+      const applicantApplicationIndex = applicant.appliedPositions.findIndex(
+        (app) => app.jobId.toString() === postId
+      );
       if (applicantApplicationIndex !== -1) {
         applicant.appliedPositions.splice(applicantApplicationIndex, 1);
         await applicant.save();
@@ -787,10 +732,11 @@ app.delete("/api/posts/:postId/applications/:applicantId", async (req, res) => {
     res.status(200).json({ message: "Application deleted successfully!" });
   } catch (error) {
     console.error("Error deleting application:", error);
-    res.status(500).json({ message: "Internal server error", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
   }
 });
-
 
 // Sample Express.js endpoint to get applicant details
 app.get("/api/applicant/details", async (req, res) => {
@@ -799,7 +745,9 @@ app.get("/api/applicant/details", async (req, res) => {
     const authHeader = req.headers["authorization"];
     if (!authHeader) {
       console.log("Authorization header is missing");
-      return res.status(401).json({ message: "Authorization token is missing." });
+      return res
+        .status(401)
+        .json({ message: "Authorization token is missing." });
     }
 
     // Split the 'Bearer <token>' string and get the token part
@@ -815,7 +763,9 @@ app.get("/api/applicant/details", async (req, res) => {
     console.log("Decoded token:", decoded);
 
     // Find the applicant by their ID
-    const applicant = await Applicant.findById(applicantId).populate("appliedPositions");
+    const applicant = await Applicant.findById(applicantId).populate(
+      "appliedPositions"
+    );
     if (!applicant) {
       console.log("Applicant not found for ID:", applicantId);
       return res.status(404).json({ message: "Applicant not found." });
@@ -825,11 +775,14 @@ app.get("/api/applicant/details", async (req, res) => {
     res.status(200).json({
       name: applicant.name,
       email: applicant.email,
-      appliedPositions: applicant.appliedPositions, 
-      id:applicant.id// Include applied positions
+      appliedPositions: applicant.appliedPositions,
+      id: applicant.id, // Include applied positions
     });
   } catch (error) {
-    console.error("Error verifying token or fetching applicant details:", error);
+    console.error(
+      "Error verifying token or fetching applicant details:",
+      error
+    );
     res.status(400).json({ message: "Invalid or expired token." });
   }
 });
@@ -852,11 +805,11 @@ app.post("/api/applicant/signup", async (req, res) => {
     const verificationToken = crypto.randomBytes(32).toString("hex");
 
     // Create a new applicant
-    const newApplicant = new Applicant({ 
-      name, 
-      email, 
-      password, 
-      verificationToken, 
+    const newApplicant = new Applicant({
+      name,
+      email,
+      password,
+      verificationToken,
     });
 
     // Log the applicant data before saving
@@ -864,49 +817,57 @@ app.post("/api/applicant/signup", async (req, res) => {
 
     await newApplicant.save();
 
-    // Send verification email 
+    // Send verification email
     const verificationLink = `http://localhost:3000/verify/${verificationToken}`;
     const mailOptions = {
       from: "pawsomeadoption620@gmail.com",
       to: email,
       subject: "Email Verification",
       text: `Please verify your email by clicking the following link: ${verificationLink}`,
-    }; 
- 
-    transporter.sendMail(mailOptions, (error, info) => { 
-      if (error) { 
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
         console.error("Error sending email:", error);
-        return res.status(500).json({ message: "Error sending verification email." }); 
-      } 
+        return res
+          .status(500)
+          .json({ message: "Error sending verification email." });
+      }
       console.log("Verification email sent:", info.response);
       res.status(201).json({
-        message: "Applicant created successfully. Please check your email to verify your account.", 
+        message:
+          "Applicant created successfully. Please check your email to verify your account.",
       });
     });
-  } catch (error) { 
+  } catch (error) {
     console.error("Error during signup:", error); // Log the error for debugging
     if (error.name === "ValidationError") {
       // Log each validation error
       for (let field in error.errors) {
-        console.error(`Validation error for ${field}:`, error.errors[field].message); 
+        console.error(
+          `Validation error for ${field}:`,
+          error.errors[field].message
+        );
       }
-      return res.status(400).json({ message: "Validation error", errors: error.errors }); 
+      return res
+        .status(400)
+        .json({ message: "Validation error", errors: error.errors });
     }
-    res.status(500).json({ message: "Server error", error }); 
-  } 
-}); 
- 
-// Applicant Login route 
-app.post("/api/applicant/login", async (req, res) => { 
-  const { email, password } = req.body; 
- 
-  try { 
+    res.status(500).json({ message: "Server error", error });
+  }
+});
+
+// Applicant Login route
+app.post("/api/applicant/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
     // Find user by email
     const user = await Applicant.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: "User not found" });
-    } 
- 
+    }
+
     // Log the received password and stored hashed password
     console.log("Received password:", password);
     console.log("Stored hashed password:", user.password);
@@ -914,17 +875,17 @@ app.post("/api/applicant/login", async (req, res) => {
     // Compare passwords
     const isPasswordValid = await user.matchPassword(password);
     console.log("Password match result:", isPasswordValid); // Log the result of password comparison
- 
-    if (!isPasswordValid) { 
-      return res.status(400).json({ message: "Invalid password" }); 
-    } 
- 
-    // Generate a JWT token 
+
+    if (!isPasswordValid) {
+      return res.status(400).json({ message: "Invalid password" });
+    }
+
+    // Generate a JWT token
     const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, {
-      expiresIn: "1h", 
-    }); 
-    res.status(200).json({ message: "Login successful", token }); 
-  } catch (error) { 
+      expiresIn: "1h",
+    });
+    res.status(200).json({ message: "Login successful", token });
+  } catch (error) {
     console.error("Server error during login:", error);
     res.status(500).json({ message: "Server error" });
   }
@@ -998,7 +959,9 @@ app.post("/api/reset-password/:token", async (req, res) => {
 
     if (!user) {
       console.log("Token not found or expired");
-      return res.status(400).json({ message: "Password reset token is invalid or has expired." });
+      return res
+        .status(400)
+        .json({ message: "Password reset token is invalid or has expired." });
     }
 
     // Set the new password (hashing is handled via the pre('save') hook)
@@ -1009,10 +972,14 @@ app.post("/api/reset-password/:token", async (req, res) => {
     try {
       await user.save(); // Save the updated user object
       console.log("Password reset successful for user:", user.email);
-      res.status(200).json({ message: "Password has been successfully reset." });
+      res
+        .status(200)
+        .json({ message: "Password has been successfully reset." });
     } catch (error) {
       console.error("Error updating password:", error.message);
-      res.status(500).json({ message: "Failed to reset password. Please try again later." });
+      res
+        .status(500)
+        .json({ message: "Failed to reset password. Please try again later." });
     }
   } catch (error) {
     console.error("Server error:", error);
@@ -1109,24 +1076,25 @@ app.post("/api/change-password", async (req, res) => {
 
     return res.status(200).json({ message: "Password changed successfully." });
   } catch (error) {
-    if (error.name === 'TokenExpiredError') {
-      console.error('Token expired:', error);
-      return res.status(401).json({ message: 'Token expired, please request a new token.' });
+    if (error.name === "TokenExpiredError") {
+      console.error("Token expired:", error);
+      return res
+        .status(401)
+        .json({ message: "Token expired, please request a new token." });
     }
 
-    console.error('Error changing password:', error);
-    return res.status(500).json({ message: 'Server error' });
-  } 
-}); 
+    console.error("Error changing password:", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
 
- 
 // Refresh Token Route
 app.post("/api/refresh-token", (req, res) => {
   const { refreshToken } = req.body;
 
   if (!refreshToken) {
-    console.error('No refresh token provided');
-    return res.status(401).json({ message: 'Refresh token is required' });
+    console.error("No refresh token provided");
+    return res.status(401).json({ message: "Refresh token is required" });
   }
 
   try {
@@ -1136,34 +1104,42 @@ app.post("/api/refresh-token", (req, res) => {
     // Optionally, verify the user exists in the database
     Applicant.findById(decoded.id, (err, user) => {
       if (err || !user) {
-        console.error('User not found or error in database lookup:', err);
-        return res.status(404).json({ message: 'User not found' });
+        console.error("User not found or error in database lookup:", err);
+        return res.status(404).json({ message: "User not found" });
       }
 
       // Generate a new access token
-      const accessToken = jwt.sign({ id: decoded.id, email: decoded.email }, JWT_SECRET, {
-        expiresIn: '15m', // New access token expiration time
-      });
+      const accessToken = jwt.sign(
+        { id: decoded.id, email: decoded.email },
+        JWT_SECRET,
+        {
+          expiresIn: "15m", // New access token expiration time
+        }
+      );
 
       return res.status(200).json({ accessToken });
     });
-
   } catch (error) {
-    if (error.name === 'TokenExpiredError') {
-      console.error('Refresh token expired:', error);
-      return res.status(403).json({ message: 'Refresh token expired. Please log in again.' });
-    } else if (error.name === 'JsonWebTokenError') {
-      console.error('Invalid refresh token:', error);
-      return res.status(403).json({ message: 'Invalid refresh token. Please log in again.' });
+    if (error.name === "TokenExpiredError") {
+      console.error("Refresh token expired:", error);
+      return res
+        .status(403)
+        .json({ message: "Refresh token expired. Please log in again." });
+    } else if (error.name === "JsonWebTokenError") {
+      console.error("Invalid refresh token:", error);
+      return res
+        .status(403)
+        .json({ message: "Invalid refresh token. Please log in again." });
     } else {
-      console.error('Error refreshing token:', error);
-      return res.status(500).json({ message: 'Failed to refresh token. Please log in again.' });
+      console.error("Error refreshing token:", error);
+      return res
+        .status(500)
+        .json({ message: "Failed to refresh token. Please log in again." });
     }
   }
 });
 
- 
-const PORT = process.env.PORT || 5001; 
-app.listen(PORT, () => { 
-  console.log(`Server running on port ${PORT}`); 
-}); 
+const PORT = process.env.PORT || 5001;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
