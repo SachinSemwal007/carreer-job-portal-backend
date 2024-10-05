@@ -67,6 +67,7 @@ const appliedJob = new Schema({
 });
 
 const applicantSchema = new mongoose.Schema({
+  jobId: { type: Schema.Types.ObjectId, ref: "Job" }, // Reference to Job model
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },

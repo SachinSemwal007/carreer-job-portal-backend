@@ -19,13 +19,13 @@ const referenceSchema = new Schema({
 
 // Main Post schema
 const appliedJob = new Schema({
-  applicantId: { type: String, required: true }, 
-  firstName: { type: String, required: true },
+  applicantId: { type: String, required: false }, 
+  firstName: { type: String, required: false },
   middleName: { type: String },
-  lastName: { type: String, required: true },
+  lastName: { type: String, required: false },
   fhName: { type: String },
-  email: { type: String, required: true },
-  contact: { type: String, required: true },
+  email: { type: String, required: false },
+  contact: { type: String, required: false },
   whatsapp: { type: String },
   gender: { type: String },
   dob: { type: Date },

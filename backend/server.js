@@ -304,11 +304,14 @@ app.post("/api/posts/:id/apply", upload.fields([
   { name: 'certification', maxCount: 1 },
   { name: 'signature', maxCount: 1 }
 ]), async (req, res) => {
-  const { applicationData, submitted } = req.body;
   const postId = req.params.id;
   const files = req.files;
 
   try {
+    // Parse applicationData from the request body
+    const applicationData = JSON.parse(req.body.applicationData);
+    const { submitted } = req.body;
+
     // Find the job post by ID
     const jobPost = await Post.findById(postId);
     if (!jobPost) {
@@ -321,7 +324,7 @@ app.post("/api/posts/:id/apply", upload.fields([
     }
 
     // Extract required fields from applicationData
-    const { applicantId, firstName, lastName, email, contact } = applicationData;
+    const { applicantId, firstName, lastName, email, contact, courses, experiences, references } = applicationData;
 
     // Check if all required fields are present
     if (!applicantId || !firstName || !lastName || !email || !contact) {
@@ -358,24 +361,53 @@ app.post("/api/posts/:id/apply", upload.fields([
       signatureUrl = await uploadToS3(files.signature[0]);
     }
 
-    // Create a new application object
+    // Create the new application object, including nested schemas
     const newApplication = {
       applicantId,
-      postId, // This is required and is being set here
       firstName,
+      middleName: applicationData.middleName,
       lastName,
+      fhName: applicationData.fhName,
       email,
       contact,
-      submitted: !!submitted, // Ensure a boolean value is set
-      applicationDate: new Date(), // Set the application date
+      whatsapp: applicationData.whatsapp,
+      gender: applicationData.gender,
+      dob: applicationData.dob,
+      maritalStatus: applicationData.maritalStatus,
+      address: applicationData.address,
+      pincode: applicationData.pincode,
+      country: applicationData.country,
+      state: applicationData.state,
+      district: applicationData.district,
+      isHandicapped: applicationData.isHandicapped,
+      community: applicationData.community,
+      matriculationYear: applicationData.matriculationYear,
+      matriculationGrade: applicationData.matriculationGrade,
+      matriculationPercentage: applicationData.matriculationPercentage,
+      matriculationBoard: applicationData.matriculationBoard,
+      interYear: applicationData.interYear,
+      interGrade: applicationData.interGrade,
+      interPercentage: applicationData.interPercentage,
+      interBoard: applicationData.interBoard,
+      bachelorYear: applicationData.bachelorYear,
+      bachelorCourse: applicationData.bachelorCourse,
+      bachelorSpecialization: applicationData.bachelorSpecialization,
+      bachelorGrade: applicationData.bachelorGrade,
+      bachelorPercentage: applicationData.bachelorPercentage,
+      bachelorUniversity: applicationData.bachelorUniversity,
+      courses: courses ? courses.map(course => ({ name: course.name })) : [],
+      experiences: experiences ? experiences.map(exp => ({ title: exp.title, company: exp.company, years: exp.years })) : [],
+      references: references ? references.map(ref => ({ name: ref.name, relation: ref.relation, contact: ref.contact })) : [],
+      achievement: applicationData.achievement,
+      description: applicationData.description,
       passportPhoto: passportPhotoUrl,
       certification: certificationUrl,
       signature: signatureUrl,
-      // Add other optional fields from `applicationData` if they exist
-      ...applicationData,
+      submitted: !!submitted,
+      jobId: postId, // Reference to the job post
     };
 
-    // Validate and add the new application to the `applicants` array in `jobPost`
+    // Add the new application to the `applicants` array in the job post
     jobPost.applicants.push(newApplication);
 
     // Save the updated job post document
@@ -383,13 +415,12 @@ app.post("/api/posts/:id/apply", upload.fields([
 
     // Optionally, add the job application to the applicant's `appliedPositions` array
     applicant.appliedPositions.push({
-      postId, // Ensure this is added to the appliedPositions
+      postId,
       firstName,
       lastName,
       email,
       contact,
-      applicationDate: newApplication.applicationDate,
-      // Copy other details if needed
+      applicationDate: new Date(), // Record the application date
     });
     await applicant.save();
 
@@ -404,6 +435,7 @@ app.post("/api/posts/:id/apply", upload.fields([
     }
   }
 });
+
 
 //put route to edit a applied job
 app.put("/api/posts/:postId/applications/:applicantId", upload.fields([
@@ -612,7 +644,8 @@ app.get("/api/applicant/details", async (req, res) => {
     res.status(200).json({
       name: applicant.name,
       email: applicant.email,
-      appliedPositions: applicant.appliedPositions, // Include applied positions
+      appliedPositions: applicant.appliedPositions, 
+      id:applicant.id// Include applied positions
     });
   } catch (error) {
     console.error("Error verifying token or fetching applicant details:", error);
