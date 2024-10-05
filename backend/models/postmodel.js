@@ -8,7 +8,7 @@ const courseSchema = new Schema({
 const experienceSchema = new Schema({
   title: { type: String, required: true },
   company: { type: String, required: true },
-  years: { type: Number, required: true },
+  years: { type: Number, required: false },
 });
 
 const referenceSchema = new Schema({

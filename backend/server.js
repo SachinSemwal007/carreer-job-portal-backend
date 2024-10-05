@@ -403,7 +403,7 @@ app.post("/api/posts/:id/apply", upload.fields([
       passportPhoto: passportPhotoUrl,
       certification: certificationUrl,
       signature: signatureUrl,
-      submitted: !!submitted,
+      submitted: !submitted,
       jobId: postId, // Reference to the job post
     };
 
