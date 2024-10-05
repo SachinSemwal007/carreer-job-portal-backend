@@ -11,7 +11,7 @@ const courseSchema = new Schema({
 const experienceSchema = new Schema({
   title: { type: String, required: true },
   company: { type: String, required: true },
-  years: { type: Number, required: true },
+  years: { type: Number, required: false },
 });
 
 const referenceSchema = new Schema({
@@ -22,13 +22,14 @@ const referenceSchema = new Schema({
 
 // Main Post schema
 const appliedJob = new Schema({
-  postId:{type:String,required:true},
-  firstName: { type: String, required: true },
+  postId: { type: String, required: false }, 
+  applicantId: { type: String, required: false }, 
+  firstName: { type: String, required: false },
   middleName: { type: String },
-  lastName: { type: String, required: true },
+  lastName: { type: String, required: false },
   fhName: { type: String },
-  email: { type: String, required: true },
-  contact: { type: String, required: true },
+  email: { type: String, required: false },
+  contact: { type: String, required: false },
   whatsapp: { type: String },
   gender: { type: String },
   dob: { type: Date },
@@ -65,7 +66,6 @@ const appliedJob = new Schema({
   submitted:{type:Boolean},
   jobId: { type: Schema.Types.ObjectId, ref: "Job" }, // Reference to Job model
 });
-
 const applicantSchema = new mongoose.Schema({
   jobId: { type: Schema.Types.ObjectId, ref: "Job" }, // Reference to Job model
   name: { type: String, required: true },

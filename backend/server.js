@@ -299,28 +299,163 @@ app.put("/api/posts/:id", async (req, res) => {
 });
 
 //Post route to apply for a job
+// app.post("/api/posts/:id/apply", upload.fields([
+//   { name: 'passportPhoto', maxCount: 1 },
+//   { name: 'certification', maxCount: 1 },
+//   { name: 'signature', maxCount: 1 }
+// ]), async (req, res) => {
+//   const postId = req.params.id;
+//   const files = req.files;
+
+//   try {
+//     // Parse applicationData from the request body
+//     const applicationData = JSON.parse(req.body.applicationData);
+//     const { submitted } = req.body;
+
+//     // Find the job post by ID
+//     const jobPost = await Post.findById(postId);
+//     if (!jobPost) {
+//       return res.status(404).json({ message: "Job post not found" });
+//     }
+
+//     // Ensure the `applicants` array exists
+//     if (!jobPost.applicants) {
+//       jobPost.applicants = [];
+//     }
+
+//     // Extract required fields from applicationData
+//     const { applicantId, firstName, lastName, email, contact, courses, experiences, references } = applicationData;
+
+//     // Check if all required fields are present
+//     if (!applicantId || !firstName || !lastName || !email || !contact) {
+//       return res.status(400).json({ message: "All required fields (applicantId, firstName, lastName, email, contact) must be provided." });
+//     }
+
+//     // Find the applicant by their ID
+//     const applicant = await Applicant.findById(applicantId);
+//     if (!applicant) {
+//       return res.status(404).json({ message: "Applicant not found" });
+//     }
+
+//     // Upload files to S3 (if any) and obtain URLs
+//     const uploadToS3 = async (file) => {
+//       const fileContent = fs.readFileSync(file.path);
+//       const params = {
+//         Bucket: process.env.S3_BUCKET_NAME,
+//         Key: `${Date.now()}_${file.originalname}`,
+//         Body: fileContent,
+//         ContentType: file.mimetype,
+//       };
+//       await s3Client.send(new PutObjectCommand(params));
+//       return `https://${params.Bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${params.Key}`;
+//     };
+
+//     let passportPhotoUrl = '', certificationUrl = '', signatureUrl = '';
+//     if (files.passportPhoto) {
+//       passportPhotoUrl = await uploadToS3(files.passportPhoto[0]);
+//     }
+//     if (files.certification) {
+//       certificationUrl = await uploadToS3(files.certification[0]);
+//     }
+//     if (files.signature) {
+//       signatureUrl = await uploadToS3(files.signature[0]);
+//     }
+
+//     // Create the new application object, including nested schemas
+//     const newApplication = {
+//       applicantId,
+//       firstName,
+//       middleName: applicationData.middleName,
+//       lastName,
+//       fhName: applicationData.fhName,
+//       email,
+//       contact,
+//       whatsapp: applicationData.whatsapp,
+//       gender: applicationData.gender,
+//       dob: applicationData.dob,
+//       maritalStatus: applicationData.maritalStatus,
+//       address: applicationData.address,
+//       pincode: applicationData.pincode,
+//       country: applicationData.country,
+//       state: applicationData.state,
+//       district: applicationData.district,
+//       isHandicapped: applicationData.isHandicapped,
+//       community: applicationData.community,
+//       matriculationYear: applicationData.matriculationYear,
+//       matriculationGrade: applicationData.matriculationGrade,
+//       matriculationPercentage: applicationData.matriculationPercentage,
+//       matriculationBoard: applicationData.matriculationBoard,
+//       interYear: applicationData.interYear,
+//       interGrade: applicationData.interGrade,
+//       interPercentage: applicationData.interPercentage,
+//       interBoard: applicationData.interBoard,
+//       bachelorYear: applicationData.bachelorYear,
+//       bachelorCourse: applicationData.bachelorCourse,
+//       bachelorSpecialization: applicationData.bachelorSpecialization,
+//       bachelorGrade: applicationData.bachelorGrade,
+//       bachelorPercentage: applicationData.bachelorPercentage,
+//       bachelorUniversity: applicationData.bachelorUniversity,
+//       courses: courses ? courses.map(course => ({ name: course.name })) : [],
+//       experiences: experiences ? experiences.map(exp => ({ title: exp.title, company: exp.company, years: exp.years })) : [],
+//       references: references ? references.map(ref => ({ name: ref.name, relation: ref.relation, contact: ref.contact })) : [],
+//       achievement: applicationData.achievement,
+//       description: applicationData.description,
+//       passportPhoto: passportPhotoUrl,
+//       certification: certificationUrl,
+//       signature: signatureUrl,
+//       submitted: !submitted,
+//       jobId: postId, // Reference to the job post
+//     };
+
+//     // Add the new application to the `applicants` array in the job post
+//     jobPost.applicants.push(newApplication);
+
+//     // Save the updated job post document
+//     await jobPost.save();
+
+//     // Optionally, add the job application to the applicant's `appliedPositions` array
+//     applicant.appliedPositions.push({
+//       postId,
+//       firstName,
+//       lastName,
+//       email,
+//       contact,
+//       applicationDate: new Date(), // Record the application date
+//     });
+//     await applicant.save();
+
+//     res.status(201).json({ message: "Application submitted successfully!" });
+//   } catch (error) {
+//     console.error("Error applying for job:", error);
+//     res.status(500).json({ message: "Internal server error", error: error.message });
+//   } finally {
+//     // Clean up local files
+//     if (files) {
+//       Object.values(files).flat().forEach(file => fs.unlinkSync(file.path));
+//     }
+//   }
+// });
+
 app.post("/api/posts/:id/apply", upload.fields([
   { name: 'passportPhoto', maxCount: 1 },
   { name: 'certification', maxCount: 1 },
   { name: 'signature', maxCount: 1 }
 ]), async (req, res) => {
-  const postId = req.params.id;
-  const files = req.files;
+  const session = await mongoose.startSession(); // Start a session for transactions
+  session.startTransaction(); // Begin transaction
 
   try {
+    const postId = req.params.id;
+    const files = req.files;
+
     // Parse applicationData from the request body
     const applicationData = JSON.parse(req.body.applicationData);
     const { submitted } = req.body;
 
     // Find the job post by ID
-    const jobPost = await Post.findById(postId);
+    const jobPost = await Post.findById(postId).session(session);
     if (!jobPost) {
       return res.status(404).json({ message: "Job post not found" });
-    }
-
-    // Ensure the `applicants` array exists
-    if (!jobPost.applicants) {
-      jobPost.applicants = [];
     }
 
     // Extract required fields from applicationData
@@ -332,7 +467,7 @@ app.post("/api/posts/:id/apply", upload.fields([
     }
 
     // Find the applicant by their ID
-    const applicant = await Applicant.findById(applicantId);
+    const applicant = await Applicant.findById(applicantId).session(session);
     if (!applicant) {
       return res.status(404).json({ message: "Applicant not found" });
     }
@@ -361,8 +496,8 @@ app.post("/api/posts/:id/apply", upload.fields([
       signatureUrl = await uploadToS3(files.signature[0]);
     }
 
-    // Create the new application object, including nested schemas
-    const newApplication = {
+    // Create the new application object for the job post
+    const newApplicationForJob = {
       applicantId,
       firstName,
       middleName: applicationData.middleName,
@@ -404,34 +539,80 @@ app.post("/api/posts/:id/apply", upload.fields([
       certification: certificationUrl,
       signature: signatureUrl,
       submitted: !submitted,
-      jobId: postId, // Reference to the job post
+      jobId: postId,
     };
 
-    // Add the new application to the `applicants` array in the job post
-    jobPost.applicants.push(newApplication);
+    // Add the new application to the job post's `applicants` array
+    jobPost.applicants.push(newApplicationForJob);
+    await jobPost.save({ session });
 
-    // Save the updated job post document
-    await jobPost.save();
-
-    // Optionally, add the job application to the applicant's `appliedPositions` array
-    applicant.appliedPositions.push({
+    // Create the new application object for the applicant's `appliedPositions`
+    const newApplicationForApplicant = {
       postId,
+      applicantId,
       firstName,
+      middleName: applicationData.middleName,
       lastName,
+      fhName: applicationData.fhName,
       email,
       contact,
-      applicationDate: new Date(), // Record the application date
-    });
-    await applicant.save();
+      whatsapp: applicationData.whatsapp,
+      gender: applicationData.gender,
+      dob: applicationData.dob,
+      maritalStatus: applicationData.maritalStatus,
+      address: applicationData.address,
+      pincode: applicationData.pincode,
+      country: applicationData.country,
+      state: applicationData.state,
+      district: applicationData.district,
+      isHandicapped: applicationData.isHandicapped,
+      community: applicationData.community,
+      matriculationYear: applicationData.matriculationYear,
+      matriculationGrade: applicationData.matriculationGrade,
+      matriculationPercentage: applicationData.matriculationPercentage,
+      matriculationBoard: applicationData.matriculationBoard,
+      interYear: applicationData.interYear,
+      interGrade: applicationData.interGrade,
+      interPercentage: applicationData.interPercentage,
+      interBoard: applicationData.interBoard,
+      bachelorYear: applicationData.bachelorYear,
+      bachelorCourse: applicationData.bachelorCourse,
+      bachelorSpecialization: applicationData.bachelorSpecialization,
+      bachelorGrade: applicationData.bachelorGrade,
+      bachelorPercentage: applicationData.bachelorPercentage,
+      bachelorUniversity: applicationData.bachelorUniversity,
+      courses: courses ? courses.map(course => ({ name: course.name })) : [],
+      experiences: experiences ? experiences.map(exp => ({ title: exp.title, company: exp.company, years: exp.years })) : [],
+      references: references ? references.map(ref => ({ name: ref.name, relation: ref.relation, contact: ref.contact })) : [],
+      achievement: applicationData.achievement,
+      description: applicationData.description,
+      passportPhoto: passportPhotoUrl,
+      certification: certificationUrl,
+      signature: signatureUrl,
+      submitted: !submitted,
+      jobId: postId,
+    };
+
+    // Add the application to the applicant's `appliedPositions`
+    applicant.appliedPositions.push(newApplicationForApplicant);
+    await applicant.save({ session });
+
+    // Commit the transaction
+    await session.commitTransaction();
+    session.endSession();
 
     res.status(201).json({ message: "Application submitted successfully!" });
   } catch (error) {
+    // Rollback transaction in case of error
+    await session.abortTransaction();
+    session.endSession();
+
     console.error("Error applying for job:", error);
     res.status(500).json({ message: "Internal server error", error: error.message });
   } finally {
     // Clean up local files
-    if (files) {
-      Object.values(files).flat().forEach(file => fs.unlinkSync(file.path));
+    if (req.files) {
+      Object.values(req.files).flat().forEach(file => fs.unlinkSync(file.path));
     }
   }
 });
