@@ -504,7 +504,7 @@ app.post(
         passportPhoto: passportPhotoUrl,
         certification: certificationUrl,
         signature: signatureUrl,
-        submitted: submitted === "true" || submitted === true,
+        submitted: !submitted,
         jobId: postId,
       };
 
