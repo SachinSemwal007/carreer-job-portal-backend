@@ -305,7 +305,6 @@ app.put("/api/posts/:id", async (req, res) => {
   }
 });
 
-//apply for a job
 app.post(
   "/api/posts/:id/apply",
   upload.fields([
@@ -331,7 +330,14 @@ app.post(
         return res.status(404).json({ message: "Job post not found" });
       }
 
-      // Extract required fields from applicationData
+      // Generate a padded applicationId using the existing applicationData.applicationId
+      const baseApplicationId = applicationData.applicationId; // Existing string from applicationData
+      const nextIndex = jobPost.applicants.length + 1; // Get the current index
+      const paddedIndex = nextIndex.toString().padStart(4, "0"); // Pad the index to 4 digits
+      const newApplicationId = `${baseApplicationId}-${paddedIndex}`; // Append the padded index to the base string
+
+      // console.log(newApplicationId);
+      // Check if all required fields are present
       const {
         applicantId,
         firstName,
@@ -343,7 +349,6 @@ app.post(
         references,
       } = applicationData;
 
-      // Check if all required fields are present
       if (!applicantId || !firstName || !lastName || !email || !contact) {
         return res.status(400).json({
           message:
@@ -385,6 +390,7 @@ app.post(
 
       // Create the new application object for the job post
       const newApplicationForJob = {
+        applicationId: newApplicationId, // Ensure applicationId is set here
         applicantId,
         firstName,
         middleName: applicationData.middleName,
@@ -417,29 +423,15 @@ app.post(
         bachelorGrade: applicationData.bachelorGrade,
         bachelorPercentage: applicationData.bachelorPercentage,
         bachelorUniversity: applicationData.bachelorUniversity,
-        courses: courses
-          ? courses.map((course) => ({ name: course.name }))
-          : [],
-        experiences: experiences
-          ? experiences.map((exp) => ({
-              title: exp.title,
-              company: exp.company,
-              years: exp.years,
-            }))
-          : [],
-        references: references
-          ? references.map((ref) => ({
-              name: ref.name,
-              relation: ref.relation,
-              contact: ref.contact,
-            }))
-          : [],
+        courses: courses ? courses.map((course) => ({ ...course })) : [],
+        experiences: experiences ? experiences.map((exp) => ({ ...exp })) : [],
+        references: references ? references.map((ref) => ({ ...ref })) : [],
         achievement: applicationData.achievement,
         description: applicationData.description,
         passportPhoto: passportPhotoUrl,
         certification: certificationUrl,
         signature: signatureUrl,
-        submitted: submitted === "true" || submitted === true,
+        submitted: applicationData.submitted,
         jobId: postId,
       };
 
@@ -449,6 +441,7 @@ app.post(
 
       // Create the new application object for the applicant's `appliedPositions`
       const newApplicationForApplicant = {
+        applicationId: newApplicationId, // Ensure applicationId is set here as well
         postId,
         applicantId,
         firstName,
@@ -482,29 +475,15 @@ app.post(
         bachelorGrade: applicationData.bachelorGrade,
         bachelorPercentage: applicationData.bachelorPercentage,
         bachelorUniversity: applicationData.bachelorUniversity,
-        courses: courses
-          ? courses.map((course) => ({ name: course.name }))
-          : [],
-        experiences: experiences
-          ? experiences.map((exp) => ({
-              title: exp.title,
-              company: exp.company,
-              years: exp.years,
-            }))
-          : [],
-        references: references
-          ? references.map((ref) => ({
-              name: ref.name,
-              relation: ref.relation,
-              contact: ref.contact,
-            }))
-          : [],
+        courses: courses ? courses.map((course) => ({ ...course })) : [],
+        experiences: experiences ? experiences.map((exp) => ({ ...exp })) : [],
+        references: references ? references.map((ref) => ({ ...ref })) : [],
         achievement: applicationData.achievement,
         description: applicationData.description,
         passportPhoto: passportPhotoUrl,
         certification: certificationUrl,
         signature: signatureUrl,
-        submitted: !submitted,
+        submitted: applicationData.submitted,
         jobId: postId,
       };
 
@@ -550,14 +529,17 @@ app.put(
     const { applicationData, submitted } = req.body;
     const files = req.files;
 
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
     try {
       // Find the job post by ID
-      const jobPost = await Post.findById(postId);
+      const jobPost = await Post.findById(postId).session(session);
       if (!jobPost) {
         return res.status(404).json({ message: "Job post not found" });
       }
 
-      // Find the application to be edited
+      // Find the application to be edited within the job post's applicants
       const applicationIndex = jobPost.applicants.findIndex(
         (app) => app.applicantId.toString() === applicantId
       );
@@ -608,12 +590,12 @@ app.put(
         signatureUrl = await uploadToS3(files.signature[0]);
       }
 
-      // Update the application fields
+      // Update the application fields in the job post
       const updatedApplication = {
         ...jobPost.applicants[applicationIndex], // Keep existing data
-        ...applicationData, // Overwrite with the new data
-        submitted: !!submitted,
-        applicationDate: new Date(),
+        ...applicationData, // Overwrite with new application data
+        submitted: !!submitted, // Ensure boolean conversion
+        applicationDate: new Date(), // Update application date
         passportPhoto: passportPhotoUrl,
         certification: certificationUrl,
         signature: signatureUrl,
@@ -634,30 +616,35 @@ app.put(
           })) || jobPost.applicants[applicationIndex].references,
       };
 
-      // Replace the old application data with the updated one
+      // Replace the old application with the updated one
       jobPost.applicants[applicationIndex] = updatedApplication;
+      await jobPost.save({ session });
 
-      // Save the updated job post document
-      await jobPost.save();
-
-      // Optionally, update the applicant's `appliedPositions` array
-      const applicant = await Applicant.findById(applicantId);
+      // Find the applicant and update the appliedPositions array
+      const applicant = await Applicant.findById(applicantId).session(session);
       if (applicant) {
-        const applicantApplicationIndex = applicant.appliedPositions.findIndex(
-          (app) => app.jobId.toString() === postId
+        const appliedPositionIndex = applicant.appliedPositions.findIndex(
+          (pos) => pos.jobId.toString() === postId
         );
-        if (applicantApplicationIndex !== -1) {
-          applicant.appliedPositions[applicantApplicationIndex] = {
-            jobId: postId,
+        if (appliedPositionIndex !== -1) {
+          applicant.appliedPositions[appliedPositionIndex] = {
+            ...applicant.appliedPositions[appliedPositionIndex],
             applicationDate: updatedApplication.applicationDate,
             submitted: !!submitted,
           };
-          await applicant.save();
+          await applicant.save({ session });
         }
       }
 
+      await session.commitTransaction();
+      session.endSession();
+
       res.status(200).json({ message: "Application updated successfully!" });
     } catch (error) {
+      // Rollback transaction in case of error
+      await session.abortTransaction();
+      session.endSession();
+
       console.error("Error updating application:", error);
       res
         .status(500)
@@ -672,71 +659,91 @@ app.put(
     }
   }
 );
+
 // DELETE route: Remove an applicant from a job post
-app.delete("/api/posts/:postId/applications/:applicantId", async (req, res) => {
-  const { postId, applicantId } = req.params;
+app.delete(
+  "/api/posts/:postId/applications/:applicationId",
+  async (req, res) => {
+    const { postId, applicationId } = req.params;
 
-  try {
-    // Find the job post by ID
-    const jobPost = await Post.findById(postId);
-    if (!jobPost) {
-      return res.status(404).json({ message: "Job post not found" });
-    }
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    // Find the application to be deleted
-    const applicationIndex = jobPost.applicants.findIndex(
-      (app) => app.applicantId.toString() === applicantId
-    );
-    if (applicationIndex === -1) {
-      return res
-        .status(404)
-        .json({ message: "Application not found in job post" });
-    }
-
-    // Helper function to delete from S3
-    const deleteFromS3 = async (url) => {
-      const key = url.split("/").pop();
-      const params = {
-        Bucket: process.env.S3_BUCKET_NAME,
-        Key: key,
-      };
-      await s3Client.send(new DeleteObjectCommand(params));
-    };
-
-    // Delete associated files from S3
-    const application = jobPost.applicants[applicationIndex];
-    if (application.passportPhoto)
-      await deleteFromS3(application.passportPhoto);
-    if (application.certification)
-      await deleteFromS3(application.certification);
-    if (application.signature) await deleteFromS3(application.signature);
-
-    // Remove the application from the `applicants` array
-    jobPost.applicants.splice(applicationIndex, 1);
-
-    // Save the updated job post document
-    await jobPost.save();
-
-    // Optionally, remove the job application from the applicant's `appliedPositions` array
-    const applicant = await Applicant.findById(applicantId);
-    if (applicant) {
-      const applicantApplicationIndex = applicant.appliedPositions.findIndex(
-        (app) => app.jobId.toString() === postId
-      );
-      if (applicantApplicationIndex !== -1) {
-        applicant.appliedPositions.splice(applicantApplicationIndex, 1);
-        await applicant.save();
+    try {
+      // Find the job post by ID
+      const jobPost = await Post.findById(postId).session(session);
+      if (!jobPost) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(404).json({ message: "Job post not found" });
       }
-    }
 
-    res.status(200).json({ message: "Application deleted successfully!" });
-  } catch (error) {
-    console.error("Error deleting application:", error);
-    res
-      .status(500)
-      .json({ message: "Internal server error", error: error.message });
+      // Find the application to be deleted by its _id (applicationId)
+      const applicationIndex = jobPost.applicants.findIndex(
+        (app) => app._id.toString() === applicationId
+      );
+      if (applicationIndex === -1) {
+        await session.abortTransaction();
+        session.endSession();
+        return res
+          .status(404)
+          .json({ message: "Application not found in job post" });
+      }
+
+      // Helper function to delete from S3
+      const deleteFromS3 = async (url) => {
+        if (!url) return;
+        const key = url.split("/").pop();
+        const params = {
+          Bucket: process.env.S3_BUCKET_NAME,
+          Key: key,
+        };
+        await s3Client.send(new DeleteObjectCommand(params));
+      };
+
+      // Delete associated files from S3
+      const application = jobPost.applicants[applicationIndex];
+      if (application.passportPhoto)
+        await deleteFromS3(application.passportPhoto);
+      if (application.certification)
+        await deleteFromS3(application.certification);
+      if (application.signature) await deleteFromS3(application.signature);
+
+      // Remove the application from the `applicants` array
+      jobPost.applicants.splice(applicationIndex, 1);
+
+      // Save the updated job post document
+      await jobPost.save({ session });
+
+      // Optionally, remove the job application from the applicant's `appliedPositions` array
+      const applicant = await Applicant.findOne({
+        _id: application.applicantId,
+      }).session(session);
+      if (applicant) {
+        const applicantApplicationIndex = applicant.appliedPositions.findIndex(
+          (app) => app.jobId.toString() === postId
+        );
+        if (applicantApplicationIndex !== -1) {
+          applicant.appliedPositions.splice(applicantApplicationIndex, 1);
+          await applicant.save({ session });
+        }
+      }
+
+      await session.commitTransaction();
+      session.endSession();
+
+      res.status(200).json({ message: "Application deleted successfully!" });
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+
+      console.error("Error deleting application:", error);
+      res
+        .status(500)
+        .json({ message: "Internal server error", error: error.message });
+    }
   }
-});
+);
 
 // Sample Express.js endpoint to get applicant details
 app.get("/api/applicant/details", async (req, res) => {
@@ -760,7 +767,7 @@ app.get("/api/applicant/details", async (req, res) => {
     // Verify the token
     const decoded = jwt.verify(token, JWT_SECRET);
     const applicantId = decoded.id; // Ensure the token includes 'id'
-    console.log("Decoded token:", decoded);
+    // console.log("Decoded token:", decoded);
 
     // Find the applicant by their ID
     const applicant = await Applicant.findById(applicantId).populate(
@@ -791,7 +798,7 @@ app.get("/api/applicant/details", async (req, res) => {
 app.post("/api/applicant/signup", async (req, res) => {
   const { name, email, password } = req.body;
 
-  console.log("Received signup data:", req.body); // Log the received data
+  // console.log("Received signup data:", req.body); // Log the received data
 
   try {
     // Check if the applicant already exists
@@ -813,7 +820,7 @@ app.post("/api/applicant/signup", async (req, res) => {
     });
 
     // Log the applicant data before saving
-    console.log("New applicant data before saving:", newApplicant);
+    // console.log("New applicant data before saving:", newApplicant);
 
     await newApplicant.save();
 
@@ -869,12 +876,12 @@ app.post("/api/applicant/login", async (req, res) => {
     }
 
     // Log the received password and stored hashed password
-    console.log("Received password:", password);
-    console.log("Stored hashed password:", user.password);
+    // console.log("Received password:", password);
+    // console.log("Stored hashed password:", user.password);
 
     // Compare passwords
     const isPasswordValid = await user.matchPassword(password);
-    console.log("Password match result:", isPasswordValid); // Log the result of password comparison
+    // console.log("Password match result:", isPasswordValid); // Log the result of password comparison
 
     if (!isPasswordValid) {
       return res.status(400).json({ message: "Invalid password" });
@@ -910,7 +917,7 @@ app.post("/api/forgot-password", async (req, res) => {
 
     // Check if the token was successfully saved
     const updatedUser = await Applicant.findOne({ email });
-    console.log("Updated User:", updatedUser);
+    // console.log("Updated User:", updatedUser);
 
     // Send email
     const transporter = nodemailer.createTransport({
@@ -945,8 +952,8 @@ app.post("/api/reset-password/:token", async (req, res) => {
   const token = req.params.token.trim(); // Trim any leading/trailing spaces
   const { password: newPassword } = req.body;
 
-  console.log("Received token:", token);
-  console.log("New password before hashing:", newPassword);
+  // console.log("Received token:", token);
+  // console.log("New password before hashing:", newPassword);
 
   try {
     // Find the user with the matching resetPasswordToken and ensure the token has not expired
@@ -955,7 +962,7 @@ app.post("/api/reset-password/:token", async (req, res) => {
       resetPasswordExpires: { $gt: Date.now() }, // Token should not be expired
     });
 
-    console.log("User found with token:", user);
+    // console.log("User found with token:", user);
 
     if (!user) {
       console.log("Token not found or expired");

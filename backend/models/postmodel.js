@@ -1,25 +1,10 @@
 const mongoose = require('mongoose');
 const {Schema}=mongoose
 
-const courseSchema = new Schema({
-  name: { type: String, required: true },
-});
-
-const experienceSchema = new Schema({
-  title: { type: String, required: true },
-  company: { type: String, required: true },
-  years: { type: Number, required: false },
-});
-
-const referenceSchema = new Schema({
-  name: { type: String, required: true },
-  relation: { type: String, required: true },
-  contact: { type: String, required: true },
-});
-
 // Main Post schema
 const appliedJob = new Schema({
-  applicantId: { type: String, required: false }, 
+  applicationId: { type: String, required: false },
+  applicantId: { type: String, required: false },
   firstName: { type: String, required: false },
   middleName: { type: String },
   lastName: { type: String, required: false },
@@ -51,15 +36,43 @@ const appliedJob = new Schema({
   bachelorGrade: { type: String },
   bachelorPercentage: { type: Number },
   bachelorUniversity: { type: String },
-  courses: [courseSchema], // Array of embedded course documents
-  experiences: [experienceSchema], // Array of embedded experience documents
-  references: [referenceSchema], // Array of embedded reference documents
+  courses: [
+    {
+      name: { type: String, required: true },
+      specialSubject: { type: String }, // Missing in original schema
+      yearOfPassing: { type: Number }, // Missing in original schema
+      duration: { type: String }, // Missing in original schema
+      gradeDivision: { type: String }, // Missing in original schema
+      percent: { type: Number }, // Missing in original schema
+      instituteName: { type: String }, // Missing in original schema
+    },
+  ], // Array of embedded course documents
+  experiences: [
+    {
+      title: { type: String, required: true },
+      company: { type: String, required: true },
+      years: { type: Number, required: false },
+      post: { type: String }, // Missing in original schema
+      jobType: { type: String }, // Missing in original schema
+      fromDate: { type: Date }, // Missing in original schema
+      tillDate: { type: Date }, // Missing in original schema
+      scaleOfType: { type: String }, // Missing in original schema
+      natureOfDuties: { type: String }, // Missing in original schema
+    },
+  ], // Array of embedded experience documents
+  references: [
+    {
+      name: { type: String, required: true },
+      relation: { type: String, required: true },
+      contact: { type: String, required: true },
+    },
+  ], // Array of embedded reference documents
   achievement: { type: String },
   description: { type: String },
   passportPhoto: { type: String }, // Assuming this is a URL or file path
   certification: { type: String }, // Assuming this is a URL or file path
   signature: { type: String }, // Assuming this is a URL or file path
-  submitted:{type:Boolean},
+  submitted: { type: Boolean },
   jobId: { type: Schema.Types.ObjectId, ref: "Job" }, // Reference to Job model
 });
 

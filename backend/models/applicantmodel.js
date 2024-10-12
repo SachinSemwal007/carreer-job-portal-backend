@@ -3,27 +3,11 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const { Schema } = mongoose;
 
-// Define sub-schemas for nested or complex fields
-const courseSchema = new Schema({
-  name: { type: String, required: true },
-});
-
-const experienceSchema = new Schema({
-  title: { type: String, required: true },
-  company: { type: String, required: true },
-  years: { type: Number, required: false },
-});
-
-const referenceSchema = new Schema({
-  name: { type: String, required: true },
-  relation: { type: String, required: true },
-  contact: { type: String, required: true },
-});
 
 // Main Post schema
 const appliedJob = new Schema({
-  postId: { type: String, required: false }, 
-  applicantId: { type: String, required: false }, 
+  applicationId: { type: String, required: false },
+  applicantId: { type: String, required: false },
   firstName: { type: String, required: false },
   middleName: { type: String },
   lastName: { type: String, required: false },
@@ -55,28 +39,55 @@ const appliedJob = new Schema({
   bachelorGrade: { type: String },
   bachelorPercentage: { type: Number },
   bachelorUniversity: { type: String },
-  courses: [courseSchema], // Array of embedded course documents
-  experiences: [experienceSchema], // Array of embedded experience documents
-  references: [referenceSchema], // Array of embedded reference documents
+  courses: [
+    {
+      name: { type: String, required: true },
+      specialSubject: { type: String }, // Missing in original schema
+      yearOfPassing: { type: Number }, // Missing in original schema
+      duration: { type: String }, // Missing in original schema
+      gradeDivision: { type: String }, // Missing in original schema
+      percent: { type: Number }, // Missing in original schema
+      instituteName: { type: String }, // Missing in original schema
+    },
+  ], // Array of embedded course documents
+  experiences: [
+    {
+      title: { type: String, required: true },
+      company: { type: String, required: true },
+      years: { type: Number, required: false },
+      post: { type: String }, // Missing in original schema
+      jobType: { type: String }, // Missing in original schema
+      fromDate: { type: Date }, // Missing in original schema
+      tillDate: { type: Date }, // Missing in original schema
+      scaleOfType: { type: String }, // Missing in original schema
+      natureOfDuties: { type: String }, // Missing in original schema
+    },
+  ], // Array of embedded experience documents
+  references: [
+    {
+      name: { type: String, required: true },
+      relation: { type: String, required: true },
+      contact: { type: String, required: true },
+    },
+  ], // Array of embedded reference documents
   achievement: { type: String },
   description: { type: String },
   passportPhoto: { type: String }, // Assuming this is a URL or file path
   certification: { type: String }, // Assuming this is a URL or file path
   signature: { type: String }, // Assuming this is a URL or file path
-  submitted:{type:Boolean},
+  submitted: { type: Boolean },
   jobId: { type: Schema.Types.ObjectId, ref: "Job" }, // Reference to Job model
 });
+
 const applicantSchema = new mongoose.Schema({
   jobId: { type: Schema.Types.ObjectId, ref: "Job" }, // Reference to Job model
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  age: { type: Number, required: false },
-  resume: { type: String, required: false },
   verificationToken: { type: String },
   appliedPositions: [appliedJob],
-  resetPasswordToken: {type: String},
-  resetPasswordExpires: {type: Date},
+  resetPasswordToken: { type: String },
+  resetPasswordExpires: { type: Date },
   // Store verification token to track verification status
 });
 
@@ -84,7 +95,7 @@ const applicantSchema = new mongoose.Schema({
 applicantSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
 
-  console.log('Hashing the new password for user:', this._id); // Debug log
+  console.log("Hashing the new password for user:", this._id); // Debug log
 
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
