@@ -83,7 +83,7 @@ const applicantSchema = new mongoose.Schema({
   jobId: { type: Schema.Types.ObjectId, ref: "Job" }, // Reference to Job model
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
+  password: { type: String, required: true }, 
   verificationToken: { type: String },
   appliedPositions: [appliedJob],
   resetPasswordToken: { type: String },
