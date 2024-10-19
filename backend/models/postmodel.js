@@ -38,7 +38,7 @@ const appliedJob = new Schema({
   bachelorUniversity: { type: String }, 
   courses: [ 
     { 
-      name: { type: String, required: true }, 
+      name: { type: String, required: false }, 
       specialSubject: { type: String }, // Missing in original schema 
       yearOfPassing: { type: Number }, // Missing in original schema 
       duration: { type: String }, // Missing in original schema 
@@ -49,8 +49,8 @@ const appliedJob = new Schema({
   ], // Array of embedded course documents 
   experiences: [ 
     { 
-      title: { type: String, required: true }, 
-      company: { type: String, required: true }, 
+      title: { type: String, required: false }, 
+      company: { type: String, required: false }, 
       years: { type: Number, required: false }, 
       post: { type: String }, // Missing in original schema 
       jobType: { type: String }, // Missing in original schema 
@@ -62,9 +62,9 @@ const appliedJob = new Schema({
   ], // Array of embedded experience documents 
   references: [ 
     { 
-      name: { type: String, required: true }, 
-      relation: { type: String, required: true }, 
-      contact: { type: String, required: true }, 
+      name: { type: String, required: false }, 
+      relation: { type: String, required: false }, 
+      contact: { type: String, required: false }, 
     }, 
   ], // Array of embedded reference documents 
   achievement: { type: String },

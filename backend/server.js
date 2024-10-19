@@ -285,6 +285,7 @@ app.put("/api/posts/:id", async (req, res) => {
   }
 });
 
+
 app.post(
   "/api/posts/:id/apply",
   upload.fields([
@@ -483,6 +484,7 @@ app.post(
     }
   }
 );
+
 
 //put route to edit a applied job
 
