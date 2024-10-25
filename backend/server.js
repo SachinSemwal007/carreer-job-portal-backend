@@ -312,13 +312,43 @@ app.post(
       } 
  
       // Generate a padded applicationId using the existing applicationData.applicationId 
-      const baseApplicationId = applicationData.applicationId; // Existing string from applicationData 
-      const nextIndex = jobPost.applicants.length + 1; // Get the current index 
-      const paddedIndex = nextIndex.toString().padStart(4, "0"); // Pad the index to 4 digits 
-      const newApplicationId = `${baseApplicationId}-${paddedIndex}`; // Append the padded index to the base string 
+      const sportCodes = {
+        boxing: "BX",
+        athletics: "ATH",
+        swimming: "SW",
+        football: "FB",
+        archery: "ARC",
+        weightlifting: "WL",
+        shooting: "SH",
+        cycling: "CY",
+        wrestling: "WR",
+        taekwondo: "TKD",
+        gymnastics: "GYM",
+        tableTennis: "TT",
+        lawnTennis: "LT",
+        badminton: "BD",
+        wushu: "WS",
+      };
+
+      // Fetch the sport from applicationData
+      const sport = applicationData.sport;
+
+      // Get the sport code using the sport name
+      const sportCode = sportCodes[sport];
+
+      // Define the base application ID with job position (e.g., "CO")
+      const baseApplicationId = "CO";
+
+      // Get the next index and pad it to 4 digits
+      const nextIndex = jobPost.applicants.length + 1;
+      const paddedIndex = nextIndex.toString().padStart(4, "0");
+
+      // Create the new application ID using the job position, sport code, and index
+      const newApplicationId = `${baseApplicationId}-${sportCode}-${paddedIndex}`; // Append the padded index to the base string 
  
       // console.log(newApplicationId); 
       // Check if all required fields are present 
+      
       const { applicantId, firstName, lastName, email, contact, courses, experiences, references } = applicationData; 
  
       if (!applicantId || !firstName || !lastName || !email || !contact) { 
@@ -360,50 +390,51 @@ app.post(
       } 
  
       // Create the new application object for the job post 
-      const newApplicationForJob = { 
-        applicationId: newApplicationId, // Ensure applicationId is set here 
-        applicantId, 
-        firstName, 
-        middleName: applicationData.middleName, 
-        lastName, 
-        fhName: applicationData.fhName, 
-        email, 
-        contact, 
-        whatsapp: applicationData.whatsapp, 
-        gender: applicationData.gender, 
-        dob: applicationData.dob, 
-        maritalStatus: applicationData.maritalStatus, 
-        address: applicationData.address, 
-        pincode: applicationData.pincode, 
-        country: applicationData.country, 
-        state: applicationData.state, 
-        district: applicationData.district, 
-        isHandicapped: applicationData.isHandicapped, 
-        community: applicationData.community, 
-        matriculationYear: applicationData.matriculationYear, 
-        matriculationGrade: applicationData.matriculationGrade, 
-        matriculationPercentage: applicationData.matriculationPercentage, 
-        matriculationBoard: applicationData.matriculationBoard, 
-        interYear: applicationData.interYear, 
-        interGrade: applicationData.interGrade, 
-        interPercentage: applicationData.interPercentage, 
-        interBoard: applicationData.interBoard, 
-        bachelorYear: applicationData.bachelorYear, 
-        bachelorCourse: applicationData.bachelorCourse, 
-        bachelorSpecialization: applicationData.bachelorSpecialization, 
-        bachelorGrade: applicationData.bachelorGrade, 
-        bachelorPercentage: applicationData.bachelorPercentage, 
-        bachelorUniversity: applicationData.bachelorUniversity, 
-        courses: courses ? courses.map((course) => ({ ...course })) : [], 
-        experiences: experiences ? experiences.map((exp) => ({ ...exp })) : [], 
-        references: references ? references.map((ref) => ({ ...ref })) : [], 
-        achievement: applicationData.achievement, 
-        description: applicationData.description, 
-        passportPhoto: passportPhotoUrl, 
-        certification: certificationUrl, 
-        signature: signatureUrl, 
-        submitted: applicationData.submitted, 
-        jobId: postId, 
+      const newApplicationForJob = {
+        applicationId: newApplicationId, // Ensure applicationId is set here
+        applicantId,
+        sport: applicationData.sport,
+        firstName,
+        middleName: applicationData.middleName,
+        lastName,
+        fhName: applicationData.fhName,
+        email,
+        contact,
+        whatsapp: applicationData.whatsapp,
+        gender: applicationData.gender,
+        dob: applicationData.dob,
+        maritalStatus: applicationData.maritalStatus,
+        address: applicationData.address,
+        pincode: applicationData.pincode,
+        country: applicationData.country,
+        state: applicationData.state,
+        district: applicationData.district,
+        isHandicapped: applicationData.isHandicapped,
+        community: applicationData.community,
+        matriculationYear: applicationData.matriculationYear,
+        matriculationGrade: applicationData.matriculationGrade,
+        matriculationPercentage: applicationData.matriculationPercentage,
+        matriculationBoard: applicationData.matriculationBoard,
+        interYear: applicationData.interYear,
+        interGrade: applicationData.interGrade,
+        interPercentage: applicationData.interPercentage,
+        interBoard: applicationData.interBoard,
+        bachelorYear: applicationData.bachelorYear,
+        bachelorCourse: applicationData.bachelorCourse,
+        bachelorSpecialization: applicationData.bachelorSpecialization,
+        bachelorGrade: applicationData.bachelorGrade,
+        bachelorPercentage: applicationData.bachelorPercentage,
+        bachelorUniversity: applicationData.bachelorUniversity,
+        courses: courses ? courses.map((course) => ({ ...course })) : [],
+        experiences: experiences ? experiences.map((exp) => ({ ...exp })) : [],
+        references: references ? references.map((ref) => ({ ...ref })) : [],
+        achievement: applicationData.achievement,
+        description: applicationData.description,
+        passportPhoto: passportPhotoUrl,
+        certification: certificationUrl,
+        signature: signatureUrl,
+        submitted: applicationData.submitted,
+        jobId: postId,
       }; 
  
       // Add the new application to the job post's `applicants` array 
@@ -411,51 +442,52 @@ app.post(
       await jobPost.save({ session }); 
  
       // Create the new application object for the applicant's `appliedPositions` 
-      const newApplicationForApplicant = { 
-        applicationId: newApplicationId, // Ensure applicationId is set here as well 
-        postId, 
-        applicantId, 
-        firstName, 
-        middleName: applicationData.middleName, 
-        lastName, 
-        fhName: applicationData.fhName, 
-        email, 
-        contact, 
-        whatsapp: applicationData.whatsapp, 
-        gender: applicationData.gender, 
-        dob: applicationData.dob, 
-        maritalStatus: applicationData.maritalStatus, 
-        address: applicationData.address, 
-        pincode: applicationData.pincode, 
-        country: applicationData.country, 
-        state: applicationData.state, 
-        district: applicationData.district, 
-        isHandicapped: applicationData.isHandicapped, 
-        community: applicationData.community, 
-        matriculationYear: applicationData.matriculationYear, 
-        matriculationGrade: applicationData.matriculationGrade, 
-        matriculationPercentage: applicationData.matriculationPercentage, 
-        matriculationBoard: applicationData.matriculationBoard, 
-        interYear: applicationData.interYear, 
-        interGrade: applicationData.interGrade, 
-        interPercentage: applicationData.interPercentage, 
-        interBoard: applicationData.interBoard, 
-        bachelorYear: applicationData.bachelorYear, 
-        bachelorCourse: applicationData.bachelorCourse, 
-        bachelorSpecialization: applicationData.bachelorSpecialization, 
-        bachelorGrade: applicationData.bachelorGrade, 
-        bachelorPercentage: applicationData.bachelorPercentage, 
-        bachelorUniversity: applicationData.bachelorUniversity, 
-        courses: courses ? courses.map((course) => ({ ...course })) : [], 
-        experiences: experiences ? experiences.map((exp) => ({ ...exp })) : [], 
-        references: references ? references.map((ref) => ({ ...ref })) : [], 
-        achievement: applicationData.achievement, 
-        description: applicationData.description, 
-        passportPhoto: passportPhotoUrl, 
-        certification: certificationUrl, 
-        signature: signatureUrl, 
-        submitted: applicationData.submitted, 
-        jobId: postId, 
+      const newApplicationForApplicant = {
+        applicationId: newApplicationId, // Ensure applicationId is set here as well
+        postId,
+        applicantId,
+        firstName,
+        middleName: applicationData.middleName,
+        sport: applicationData.sport,
+        lastName,
+        fhName: applicationData.fhName,
+        email,
+        contact,
+        whatsapp: applicationData.whatsapp,
+        gender: applicationData.gender,
+        dob: applicationData.dob,
+        maritalStatus: applicationData.maritalStatus,
+        address: applicationData.address,
+        pincode: applicationData.pincode,
+        country: applicationData.country,
+        state: applicationData.state,
+        district: applicationData.district,
+        isHandicapped: applicationData.isHandicapped,
+        community: applicationData.community,
+        matriculationYear: applicationData.matriculationYear,
+        matriculationGrade: applicationData.matriculationGrade,
+        matriculationPercentage: applicationData.matriculationPercentage,
+        matriculationBoard: applicationData.matriculationBoard,
+        interYear: applicationData.interYear,
+        interGrade: applicationData.interGrade,
+        interPercentage: applicationData.interPercentage,
+        interBoard: applicationData.interBoard,
+        bachelorYear: applicationData.bachelorYear,
+        bachelorCourse: applicationData.bachelorCourse,
+        bachelorSpecialization: applicationData.bachelorSpecialization,
+        bachelorGrade: applicationData.bachelorGrade,
+        bachelorPercentage: applicationData.bachelorPercentage,
+        bachelorUniversity: applicationData.bachelorUniversity,
+        courses: courses ? courses.map((course) => ({ ...course })) : [],
+        experiences: experiences ? experiences.map((exp) => ({ ...exp })) : [],
+        references: references ? references.map((ref) => ({ ...ref })) : [],
+        achievement: applicationData.achievement,
+        description: applicationData.description,
+        passportPhoto: passportPhotoUrl,
+        certification: certificationUrl,
+        signature: signatureUrl,
+        submitted: applicationData.submitted,
+        jobId: postId,
       }; 
  
       // Add the application to the applicant's `appliedPositions` 
@@ -536,97 +568,118 @@ app.put(
       } 
  
       // Update Applicant's appliedPositions array using applicationId 
-      const updateApplicant = { 
-        $set: { 
-          "appliedPositions.$[elem].applicationId": updatedData.applicationId, // Missing applicationId 
-          "appliedPositions.$[elem].firstName": updatedData.firstName, 
-          "appliedPositions.$[elem].middleName": updatedData.middleName, 
-          "appliedPositions.$[elem].lastName": updatedData.lastName, 
-          "appliedPositions.$[elem].fhName": updatedData.fhName, 
-          "appliedPositions.$[elem].email": updatedData.email, 
-          "appliedPositions.$[elem].contact": updatedData.contact, 
-          "appliedPositions.$[elem].whatsapp": updatedData.whatsapp, 
-          "appliedPositions.$[elem].gender": updatedData.gender, 
-          "appliedPositions.$[elem].dob": updatedData.dob, 
-          "appliedPositions.$[elem].maritalStatus": updatedData.maritalStatus, 
-          "appliedPositions.$[elem].address": updatedData.address, 
-          "appliedPositions.$[elem].pincode": updatedData.pincode, 
-          "appliedPositions.$[elem].country": updatedData.country, 
-          "appliedPositions.$[elem].state": updatedData.state, 
-          "appliedPositions.$[elem].district": updatedData.district, 
-          "appliedPositions.$[elem].isHandicapped": updatedData.isHandicapped, 
-          "appliedPositions.$[elem].community": updatedData.community, 
-          "appliedPositions.$[elem].matriculationYear": updatedData.matriculationYear, 
-          "appliedPositions.$[elem].matriculationGrade": updatedData.matriculationGrade, 
-          "appliedPositions.$[elem].matriculationPercentage": updatedData.matriculationPercentage, 
-          "appliedPositions.$[elem].matriculationBoard": updatedData.matriculationBoard, 
-          "appliedPositions.$[elem].interYear": updatedData.interYear, 
-          "appliedPositions.$[elem].interGrade": updatedData.interGrade, 
-          "appliedPositions.$[elem].interPercentage": updatedData.interPercentage, 
-          "appliedPositions.$[elem].interBoard": updatedData.interBoard, 
-          "appliedPositions.$[elem].bachelorYear": updatedData.bachelorYear, 
-          "appliedPositions.$[elem].bachelorCourse": updatedData.bachelorCourse, 
-          "appliedPositions.$[elem].bachelorSpecialization": updatedData.bachelorSpecialization, 
-          "appliedPositions.$[elem].bachelorGrade": updatedData.bachelorGrade, 
-          "appliedPositions.$[elem].bachelorPercentage": updatedData.bachelorPercentage, 
-          "appliedPositions.$[elem].bachelorUniversity": updatedData.bachelorUniversity, 
-          "appliedPositions.$[elem].passportPhoto": passportPhotoUrl || updatedData.passportPhoto, 
-          "appliedPositions.$[elem].certification": certificationUrl || updatedData.certification, 
-          "appliedPositions.$[elem].signature": signatureUrl || updatedData.signature, 
-          "appliedPositions.$[elem].courses": updatedData.courses, 
-          "appliedPositions.$[elem].experiences": updatedData.experiences, 
-          "appliedPositions.$[elem].references": updatedData.references, 
-          "appliedPositions.$[elem].achievement": updatedData.achievement, 
-          "appliedPositions.$[elem].description": updatedData.description, 
-          "appliedPositions.$[elem].submitted": updatedData.submitted, // Missing submitted field 
-        }, 
+      const updateApplicant = {
+        $set: {
+          "appliedPositions.$[elem].applicationId": updatedData.applicationId, // Missing applicationId
+          "appliedPositions.$[elem].firstName": updatedData.firstName,
+          "appliedPositions.$[elem].middleName": updatedData.middleName,
+          "appliedPositions.$[elem].lastName": updatedData.lastName,
+          "appliedPositions.$[elem].sport": updatedData.sport,
+          "appliedPositions.$[elem].fhName": updatedData.fhName,
+          "appliedPositions.$[elem].email": updatedData.email,
+          "appliedPositions.$[elem].contact": updatedData.contact,
+          "appliedPositions.$[elem].whatsapp": updatedData.whatsapp,
+          "appliedPositions.$[elem].gender": updatedData.gender,
+          "appliedPositions.$[elem].dob": updatedData.dob,
+          "appliedPositions.$[elem].maritalStatus": updatedData.maritalStatus,
+          "appliedPositions.$[elem].address": updatedData.address,
+          "appliedPositions.$[elem].pincode": updatedData.pincode,
+          "appliedPositions.$[elem].country": updatedData.country,
+          "appliedPositions.$[elem].state": updatedData.state,
+          "appliedPositions.$[elem].district": updatedData.district,
+          "appliedPositions.$[elem].isHandicapped": updatedData.isHandicapped,
+          "appliedPositions.$[elem].community": updatedData.community,
+          "appliedPositions.$[elem].matriculationYear":
+            updatedData.matriculationYear,
+          "appliedPositions.$[elem].matriculationGrade":
+            updatedData.matriculationGrade,
+          "appliedPositions.$[elem].matriculationPercentage":
+            updatedData.matriculationPercentage,
+          "appliedPositions.$[elem].matriculationBoard":
+            updatedData.matriculationBoard,
+          "appliedPositions.$[elem].interYear": updatedData.interYear,
+          "appliedPositions.$[elem].interGrade": updatedData.interGrade,
+          "appliedPositions.$[elem].interPercentage":
+            updatedData.interPercentage,
+          "appliedPositions.$[elem].interBoard": updatedData.interBoard,
+          "appliedPositions.$[elem].bachelorYear": updatedData.bachelorYear,
+          "appliedPositions.$[elem].bachelorCourse": updatedData.bachelorCourse,
+          "appliedPositions.$[elem].bachelorSpecialization":
+            updatedData.bachelorSpecialization,
+          "appliedPositions.$[elem].bachelorGrade": updatedData.bachelorGrade,
+          "appliedPositions.$[elem].bachelorPercentage":
+            updatedData.bachelorPercentage,
+          "appliedPositions.$[elem].bachelorUniversity":
+            updatedData.bachelorUniversity,
+          "appliedPositions.$[elem].passportPhoto":
+            passportPhotoUrl || updatedData.passportPhoto,
+          "appliedPositions.$[elem].certification":
+            certificationUrl || updatedData.certification,
+          "appliedPositions.$[elem].signature":
+            signatureUrl || updatedData.signature,
+          "appliedPositions.$[elem].courses": updatedData.courses,
+          "appliedPositions.$[elem].experiences": updatedData.experiences,
+          "appliedPositions.$[elem].references": updatedData.references,
+          "appliedPositions.$[elem].achievement": updatedData.achievement,
+          "appliedPositions.$[elem].description": updatedData.description,
+          "appliedPositions.$[elem].submitted": updatedData.submitted, // Missing submitted field
+        },
       }; 
  
       // Update JobPost's applicants array using applicationId 
-      const updateJobPost = { 
-        $set: { 
-          "applicants.$[elem].applicationId": updatedData.applicationId, // Added missing field 
-          "applicants.$[elem].firstName": updatedData.firstName, 
-          "applicants.$[elem].middleName": updatedData.middleName, 
-          "applicants.$[elem].lastName": updatedData.lastName, 
-          "applicants.$[elem].fhName": updatedData.fhName, 
-          "applicants.$[elem].email": updatedData.email, 
-          "applicants.$[elem].contact": updatedData.contact, 
-          "applicants.$[elem].whatsapp": updatedData.whatsapp, 
-          "applicants.$[elem].gender": updatedData.gender, 
-          "applicants.$[elem].dob": updatedData.dob, 
-          "applicants.$[elem].maritalStatus": updatedData.maritalStatus, 
-          "applicants.$[elem].address": updatedData.address, 
-          "applicants.$[elem].pincode": updatedData.pincode, 
-          "applicants.$[elem].country": updatedData.country, 
-          "applicants.$[elem].state": updatedData.state, 
-          "applicants.$[elem].district": updatedData.district, 
-          "applicants.$[elem].isHandicapped": updatedData.isHandicapped, 
-          "applicants.$[elem].community": updatedData.community, 
-          "applicants.$[elem].matriculationYear": updatedData.matriculationYear, 
-          "applicants.$[elem].matriculationGrade": updatedData.matriculationGrade, 
-          "applicants.$[elem].matriculationPercentage": updatedData.matriculationPercentage, 
-          "applicants.$[elem].matriculationBoard": updatedData.matriculationBoard, 
-          "applicants.$[elem].interYear": updatedData.interYear, 
-          "applicants.$[elem].interGrade": updatedData.interGrade, 
-          "applicants.$[elem].interPercentage": updatedData.interPercentage, 
-          "applicants.$[elem].interBoard": updatedData.interBoard, 
-          "applicants.$[elem].bachelorYear": updatedData.bachelorYear, 
-          "applicants.$[elem].bachelorCourse": updatedData.bachelorCourse, 
-          "applicants.$[elem].bachelorSpecialization": updatedData.bachelorSpecialization, 
-          "applicants.$[elem].bachelorGrade": updatedData.bachelorGrade, 
-          "applicants.$[elem].bachelorPercentage": updatedData.bachelorPercentage, 
-          "applicants.$[elem].bachelorUniversity": updatedData.bachelorUniversity, 
-          "applicants.$[elem].passportPhoto": passportPhotoUrl || updatedData.passportPhoto, 
-          "applicants.$[elem].certification": certificationUrl || updatedData.certification, 
-          "applicants.$[elem].signature": signatureUrl || updatedData.signature, 
-          "applicants.$[elem].courses": updatedData.courses, 
-          "applicants.$[elem].experiences": updatedData.experiences, 
-          "applicants.$[elem].references": updatedData.references, 
-          "applicants.$[elem].achievement": updatedData.achievement, 
-          "applicants.$[elem].description": updatedData.description, 
-          "applicants.$[elem].submitted": updatedData.submitted, // Added missing submitted field 
-        }, 
+      const updateJobPost = {
+        $set: {
+          "applicants.$[elem].applicationId": updatedData.applicationId, // Added missing field
+          "applicants.$[elem].firstName": updatedData.firstName,
+          "applicants.$[elem].middleName": updatedData.middleName,
+          "applicants.$[elem].lastName": updatedData.lastName,
+          "applicants.$[elem].fhName": updatedData.fhName,
+          "appliedPositions.$[elem].sport": updatedData.sport,
+          "applicants.$[elem].email": updatedData.email,
+          "applicants.$[elem].contact": updatedData.contact,
+          "applicants.$[elem].whatsapp": updatedData.whatsapp,
+          "applicants.$[elem].gender": updatedData.gender,
+          "applicants.$[elem].dob": updatedData.dob,
+          "applicants.$[elem].maritalStatus": updatedData.maritalStatus,
+          "applicants.$[elem].address": updatedData.address,
+          "applicants.$[elem].pincode": updatedData.pincode,
+          "applicants.$[elem].country": updatedData.country,
+          "applicants.$[elem].state": updatedData.state,
+          "applicants.$[elem].district": updatedData.district,
+          "applicants.$[elem].isHandicapped": updatedData.isHandicapped,
+          "applicants.$[elem].community": updatedData.community,
+          "applicants.$[elem].matriculationYear": updatedData.matriculationYear,
+          "applicants.$[elem].matriculationGrade":
+            updatedData.matriculationGrade,
+          "applicants.$[elem].matriculationPercentage":
+            updatedData.matriculationPercentage,
+          "applicants.$[elem].matriculationBoard":
+            updatedData.matriculationBoard,
+          "applicants.$[elem].interYear": updatedData.interYear,
+          "applicants.$[elem].interGrade": updatedData.interGrade,
+          "applicants.$[elem].interPercentage": updatedData.interPercentage,
+          "applicants.$[elem].interBoard": updatedData.interBoard,
+          "applicants.$[elem].bachelorYear": updatedData.bachelorYear,
+          "applicants.$[elem].bachelorCourse": updatedData.bachelorCourse,
+          "applicants.$[elem].bachelorSpecialization":
+            updatedData.bachelorSpecialization,
+          "applicants.$[elem].bachelorGrade": updatedData.bachelorGrade,
+          "applicants.$[elem].bachelorPercentage":
+            updatedData.bachelorPercentage,
+          "applicants.$[elem].bachelorUniversity":
+            updatedData.bachelorUniversity,
+          "applicants.$[elem].passportPhoto":
+            passportPhotoUrl || updatedData.passportPhoto,
+          "applicants.$[elem].certification":
+            certificationUrl || updatedData.certification,
+          "applicants.$[elem].signature": signatureUrl || updatedData.signature,
+          "applicants.$[elem].courses": updatedData.courses,
+          "applicants.$[elem].experiences": updatedData.experiences,
+          "applicants.$[elem].references": updatedData.references,
+          "applicants.$[elem].achievement": updatedData.achievement,
+          "applicants.$[elem].description": updatedData.description,
+          "applicants.$[elem].submitted": updatedData.submitted, // Added missing submitted field
+        },
       }; 
  
       // Update Applicant 

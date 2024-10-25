@@ -8,6 +8,7 @@ const { Schema } = mongoose;
 const appliedJob = new Schema({
   applicationId: { type: String, required: false },
   applicantId: { type: String, required: false },
+  sport: { type: String, required: false },
   firstName: { type: String, required: false },
   middleName: { type: String },
   lastName: { type: String, required: false },
