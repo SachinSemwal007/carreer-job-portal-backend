@@ -337,7 +337,7 @@ app.post(
       const sportCode = sportCodes[sport];
 
       // Define the base application ID with job position (e.g., "CO")
-      const baseApplicationId = "CO";
+      const baseApplicationId = applicationData.applicationId
 
       // Get the next index and pad it to 4 digits
       const nextIndex = jobPost.applicants.length + 1;
