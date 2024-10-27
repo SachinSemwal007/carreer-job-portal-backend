@@ -1022,7 +1022,7 @@ app.post("/api/forgot-password", async (req, res) => {
       service: "gmail",  
       auth: {  
         user: "jsspscareers@gmail.com",  
-        pass: "JSSPS@2000",  
+        pass: "nwnhyoosodivrkce",  
       },  
     });  
   
