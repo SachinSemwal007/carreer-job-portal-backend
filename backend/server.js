@@ -336,7 +336,9 @@ app.post(
       // Generate a padded applicationId using the existing applicationData.applicationId
       const sportCodes = {
         boxing: "BX",
-        athletics: "ATH",
+        athleticsJump: "ATH",
+        athleticsTrack: "ATH",
+        athleticsField: "ATH",
         swimming: "SW",
         football: "FB",
         archery: "ARC",
@@ -408,6 +410,16 @@ app.post(
         return `https://${params.Bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${params.Key}`;
       };
 
+       function formatString(input) {
+         // Insert space before each capital letter except the first one
+         const formattedString = input.replace(/([A-Z])/g, " $1").trim();
+
+         // Capitalize the first letter of the first word
+         return (
+           formattedString.charAt(0).toUpperCase() + formattedString.slice(1)
+         );
+       }
+
       let passportPhotoUrl = "",
         certificationUrl = "",
         signatureUrl = "";
@@ -425,7 +437,7 @@ app.post(
       const newApplicationForJob = {
         applicationId: newApplicationId, // Ensure applicationId is set here
         applicantId,
-        sport: applicationData.sport,
+        sport:applicationData.sport,
         firstName,
         middleName: applicationData.middleName,
         lastName,
