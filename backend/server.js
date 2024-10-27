@@ -457,6 +457,12 @@ app.post(
         bachelorGrade: applicationData.bachelorGrade,
         bachelorPercentage: applicationData.bachelorPercentage,
         bachelorUniversity: applicationData.bachelorUniversity,
+        masterYear: applicationData.masterYear,
+        masterCourse: applicationData.masterCourse,
+        masterSpecialization: applicationData.masterSpecialization,
+        masterGrade: applicationData.masterGrade,
+        masterPercentage: applicationData.masterPercentage,
+        masterUniversity: applicationData.masterUniversity,
         courses: courses ? courses.map((course) => ({ ...course })) : [],
         experiences: experiences ? experiences.map((exp) => ({ ...exp })) : [],
         references: references ? references.map((ref) => ({ ...ref })) : [],
@@ -510,6 +516,12 @@ app.post(
         bachelorGrade: applicationData.bachelorGrade,
         bachelorPercentage: applicationData.bachelorPercentage,
         bachelorUniversity: applicationData.bachelorUniversity,
+        masterYear: applicationData.masterYear,
+        masterCourse: applicationData.masterCourse,
+        masterSpecialization: applicationData.masterSpecialization,
+        masterGrade: applicationData.masterGrade,
+        masterPercentage: applicationData.masterPercentage,
+        masterUniversity: applicationData.masterUniversity,
         courses: courses ? courses.map((course) => ({ ...course })) : [],
         experiences: experiences ? experiences.map((exp) => ({ ...exp })) : [],
         references: references ? references.map((ref) => ({ ...ref })) : [],
@@ -642,8 +654,15 @@ app.put(
           "appliedPositions.$[elem].bachelorGrade": updatedData.bachelorGrade,
           "appliedPositions.$[elem].bachelorPercentage":
             updatedData.bachelorPercentage,
-          "appliedPositions.$[elem].bachelorUniversity":
-            updatedData.bachelorUniversity,
+          "appliedPositions.$[elem].masterYear": updatedData.masterYear,
+          "appliedPositions.$[elem].masterCourse": updatedData.masterCourse,
+          "appliedPositions.$[elem].masterSpecialization":
+            updatedData.masterSpecialization,
+          "appliedPositions.$[elem].masterGrade": updatedData.masterGrade,
+          "appliedPositions.$[elem].masterPercentage":
+            updatedData.masterPercentage,
+          "appliedPositions.$[elem].masterUniversity":
+            updatedData.masterUniversity,
           "appliedPositions.$[elem].passportPhoto":
             passportPhotoUrl || updatedData.passportPhoto,
           "appliedPositions.$[elem].certification":

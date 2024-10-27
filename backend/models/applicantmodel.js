@@ -40,6 +40,12 @@ const appliedJob = new Schema({
   bachelorGrade: { type: String },
   bachelorPercentage: { type: Number },
   bachelorUniversity: { type: String },
+  masterYear: { type: Number },
+  masterCourse: { type: String },
+  masterSpecialization: { type: String },
+  masterGrade: { type: String },
+  masterPercentage: { type: Number },
+  masterUniversity: { type: String },
   courses: [
     {
       name: { type: String, required: false },
