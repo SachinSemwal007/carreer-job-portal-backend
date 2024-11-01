@@ -11,9 +11,14 @@ const nodemailer = require("nodemailer");
 const crypto = require("crypto"); // For generating the verification token
 const Applicant = require("./models/applicantmodel"); // Adjust the path based on your project structure
 const fs = require("fs");
-const { PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3"); // Assuming you are using AWS SDK v3
+const {
+  PutObjectCommand,
+  DeleteObjectCommand,
+  S3Client,
+} = require("@aws-sdk/client-s3"); // Assuming you are using AWS SDK v3
 const s3Client = require("./s3Client"); // Your configured S3 client
 const upload = require("./uploadMiddleware");
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 
 // Load environment variables from .env file
 dotenv.config();
@@ -308,486 +313,699 @@ app.put("/api/posts/:id", async (req, res) => {
   }
 });
 
-app.post(
-  "/api/posts/:id/apply",
-  upload.fields([
-    { name: "passportPhoto", maxCount: 1 },
-    { name: "certification", maxCount: 1 },
-    { name: "signature", maxCount: 1 },
-  ]),
-  async (req, res) => {
-    const session = await mongoose.startSession(); // Start a session for transactions
-    session.startTransaction(); // Begin transaction
+// app.post("/api/posts/:id/apply",
+//   upload.fields([
+//     { name: "passportPhoto", maxCount: 1 },
+//     { name: "certification", maxCount: 1 },
+//     { name: "signature", maxCount: 1 },
+//   ]),
+//   async (req, res) => {
+//     const session = await mongoose.startSession(); // Start a session for transactions
+//     session.startTransaction(); // Begin transaction
 
-    try {
-      const postId = req.params.id;
-      const files = req.files;
+//     try {
+//       const postId = req.params.id;
+//       const files  = req.files;
 
-      // Parse applicationData from the request body
-      const applicationData = JSON.parse(req.body.applicationData);
-      const { submitted } = req.body;
+//       // Parse applicationData from the request body
+//       const applicationData = JSON.parse(req.body.applicationData);
+//       const { submitted } = req.body;
 
-      // Find the job post by ID
-      const jobPost = await Post.findById(postId).session(session);
-      if (!jobPost) {
-        return res.status(404).json({ message: "Job post not found" });
-      }
+//       // Find the job post by ID
+//       const jobPost = await Post.findById(postId).session(session);
+//       if (!jobPost) {
+//         return res.status(404).json({ message: "Job post not found" });
+//       }
 
-      // Generate a padded applicationId using the existing applicationData.applicationId
-      const sportCodes = {
-        boxing: "BX",
-        athletics: "ATH",
-        swimming: "SW",
-        football: "FB",
-        archery: "ARC",
-        weightlifting: "WL",
-        shooting: "SH",
-        cycling: "CY",
-        wrestling: "WR",
-        taekwondo: "TKD",
-        gymnastics: "GYM",
-        tableTennis: "TT",
-        lawnTennis: "LT",
-        badminton: "BD",
-        wushu: "WS",
-      };
+//       // Generate a padded applicationId using the existing applicationData.applicationId
+//       const sportCodes = {
+//         boxing: "BX",
+//         athletics: "ATH",
+//         swimming: "SW",
+//         football: "FB",
+//         archery: "ARC",
+//         weightlifting: "WL",
+//         shooting: "SH",
+//         cycling: "CY",
+//         wrestling: "WR",
+//         taekwondo: "TKD",
+//         gymnastics: "GYM",
+//         tableTennis: "TT",
+//         lawnTennis: "LT",
+//         badminton: "BD",
+//         wushu: "WS",
+//       };
 
-      // Fetch the sport from applicationData
-      const sport = applicationData.sport;
+//       // Fetch the sport from applicationData
+//       const sport = applicationData.sport;
 
-      // Get the sport code using the sport name
-      const sportCode = sportCodes[sport];
+//       // Get the sport code using the sport name
+//       const sportCode = sportCodes[sport];
 
-      // Define the base application ID with job position (e.g., "CO")
-      const baseApplicationId = applicationData.applicationId;
+//       // Define the base application ID with job position (e.g., "CO")
+//       const baseApplicationId = applicationData.applicationId;
 
-      // Get the next index and pad it to 4 digits
-      const nextIndex = jobPost.applicants.length + 1;
-      const paddedIndex = nextIndex.toString().padStart(4, "0");
+//       // Get the next index and pad it to 4 digits
+//       const nextIndex = jobPost.applicants.length + 1;
+//       const paddedIndex = nextIndex.toString().padStart(4, "0");
 
-      // Create the new application ID using the job position, sport code, and index
-      const newApplicationId = `${baseApplicationId}-${sportCode}-${paddedIndex}`; // Append the padded index to the base string
+//       // Create the new application ID using the job position, sport code, and index
+//       const newApplicationId = `${baseApplicationId}-${sportCode}-${paddedIndex}`; // Append the padded index to the base string
 
-      // console.log(newApplicationId);
-      // Check if all required fields are present
+//       // console.log(newApplicationId);
+//       // Check if all required fields are present
 
-      const {
-        applicantId,
-        firstName,
-        lastName,
-        email,
-        contact,
-        courses,
-        experiences,
-        references,
-      } = applicationData;
+//       const {
+//         applicantId,
+//         firstName,
+//         lastName,
+//         email,
+//         contact,
+//         courses,
+//         experiences,
+//         references,
+//       } = applicationData;
 
-      if (!applicantId || !firstName || !lastName || !email || !contact) {
-        return res.status(400).json({
-          message:
-            "All required fields (applicantId, firstName, lastName, email, contact) must be provided.",
-        });
-      }
+//       if (!applicantId || !firstName || !lastName || !email || !contact) {
+//         return res.status(400).json({
+//           message:
+//             "All required fields (applicantId, firstName, lastName, email, contact) must be provided.",
+//         });
+//       }
 
-      // Find the applicant by their ID
-      const applicant = await Applicant.findById(applicantId).session(session);
-      if (!applicant) {
-        return res.status(404).json({ message: "Applicant not found" });
-      }
+//       // Find the applicant by their ID
+//       const applicant = await Applicant.findById(applicantId).session(session);
+//       if (!applicant) {
+//         return res.status(404).json({ message: "Applicant not found" });
+//       }
 
-      // Upload files to S3 (if any) and obtain URLs
-      const uploadToS3 = async (file) => {
-        const fileContent = fs.readFileSync(file.path);
-        const params = {
-          Bucket: process.env.S3_BUCKET_NAME,
-          Key: `${Date.now()}_${file.originalname}`,
-          Body: fileContent,
-          ContentType: file.mimetype,
-        };
-        await s3Client.send(new PutObjectCommand(params));
-        return `https://${params.Bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${params.Key}`;
-      };
+//       // Upload files to S3 (if any) and obtain URLs
+//       const uploadToS3 = async (file) => {
+//         const fileContent = fs.readFileSync(file.path);
+//         const params = {
+//           Bucket: process.env.S3_BUCKET_NAME,
+//           Key: `${Date.now()}_${file.originalname}`,
+//           Body: fileContent,
+//           ContentType: file.mimetype,
+//         };
+//         await s3Client.send(new PutObjectCommand(params));
+//         return `https://${params.Bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${params.Key}`;
+//       };
 
-       function formatString(input) {
-         // Insert space before each capital letter except the first one
-         const formattedString = input.replace(/([A-Z])/g, " $1").trim();
+//        function formatString(input) {
+//          // Insert space before each capital letter except the first one
+//          const formattedString = input.replace(/([A-Z])/g, " $1").trim();
 
-         // Capitalize the first letter of the first word
-         return (
-           formattedString.charAt(0).toUpperCase() + formattedString.slice(1)
-         );
-       }
+//          // Capitalize the first letter of the first word
+//          return (
+//            formattedString.charAt(0).toUpperCase() + formattedString.slice(1)
+//          );
+//        }
 
-      let passportPhotoUrl = "",
-        certificationUrl = "",
-        signatureUrl = "";
-      if (files.passportPhoto) {
-        passportPhotoUrl = await uploadToS3(files.passportPhoto[0]);
-      }
-      if (files.certification) {
-        certificationUrl = await uploadToS3(files.certification[0]);
-      }
-      if (files.signature) {
-        signatureUrl = await uploadToS3(files.signature[0]);
-      }
+//       let passportPhotoUrl = "",
+//         certificationUrl = "",
+//         signatureUrl = "";
+//       if (files.passportPhoto) {
+//         passportPhotoUrl = await uploadToS3(files.passportPhoto[0]);
+//       }
+//       if (files.certification) {
+//         certificationUrl = await uploadToS3(files.certification[0]);
+//       }
+//       if (files.signature) {
+//         signatureUrl = await uploadToS3(files.signature[0]);
+//       }
 
-      // Create the new application object for the job post
-      const newApplicationForJob = {
-        applicationId: newApplicationId, // Ensure applicationId is set here
-        applicantId,
-        sport:applicationData.sport,
-        firstName,
-        middleName: applicationData.middleName,
-        lastName,
-        fhName: applicationData.fhName,
-        email,
-        contact,
-        whatsapp: applicationData.whatsapp,
-        gender: applicationData.gender,
-        dob: applicationData.dob,
-        maritalStatus: applicationData.maritalStatus,
-        address: applicationData.address,
-        pincode: applicationData.pincode,
-        country: applicationData.country,
-        state: applicationData.state,
-        district: applicationData.district,
-        isHandicapped: applicationData.isHandicapped,
-        community: applicationData.community,
-        matriculationYear: applicationData.matriculationYear,
-        matriculationGrade: applicationData.matriculationGrade,
-        matriculationPercentage: applicationData.matriculationPercentage,
-        matriculationBoard: applicationData.matriculationBoard,
-        interYear: applicationData.interYear,
-        interGrade: applicationData.interGrade,
-        interPercentage: applicationData.interPercentage,
-        interBoard: applicationData.interBoard,
-        bachelorYear: applicationData.bachelorYear,
-        bachelorCourse: applicationData.bachelorCourse,
-        bachelorSpecialization: applicationData.bachelorSpecialization,
-        bachelorGrade: applicationData.bachelorGrade,
-        bachelorPercentage: applicationData.bachelorPercentage,
-        bachelorUniversity: applicationData.bachelorUniversity,
-        masterYear: applicationData.masterYear,
-        masterCourse: applicationData.masterCourse,
-        masterSpecialization: applicationData.masterSpecialization,
-        masterGrade: applicationData.masterGrade,
-        masterPercentage: applicationData.masterPercentage,
-        masterUniversity: applicationData.masterUniversity,
-        courses: courses ? courses.map((course) => ({ ...course })) : [],
-        experiences: experiences ? experiences.map((exp) => ({ ...exp })) : [],
-        references: references ? references.map((ref) => ({ ...ref })) : [],
-        achievement: applicationData.achievement,
-        description: applicationData.description,
-        passportPhoto: passportPhotoUrl,
-        certification: certificationUrl,
-        signature: signatureUrl,
-        submitted: applicationData.submitted,
-        jobId: postId,
-      };
+//       // Create the new application object for the job post
+//       const newApplicationForJob = {
+//         applicationId: newApplicationId, // Ensure applicationId is set here
+//         applicantId,
+//         sport:applicationData.sport,
+//         firstName,
+//         middleName: applicationData.middleName,
+//         lastName,
+//         fhName: applicationData.fhName,
+//         email,
+//         contact,
+//         whatsapp: applicationData.whatsapp,
+//         gender: applicationData.gender,
+//         dob: applicationData.dob,
+//         maritalStatus: applicationData.maritalStatus,
+//         address: applicationData.address,
+//         pincode: applicationData.pincode,
+//         country: applicationData.country,
+//         state: applicationData.state,
+//         district: applicationData.district,
+//         isHandicapped: applicationData.isHandicapped,
+//         community: applicationData.community,
+//         matriculationYear: applicationData.matriculationYear,
+//         matriculationGrade: applicationData.matriculationGrade,
+//         matriculationPercentage: applicationData.matriculationPercentage,
+//         matriculationBoard: applicationData.matriculationBoard,
+//         interYear: applicationData.interYear,
+//         interGrade: applicationData.interGrade,
+//         interPercentage: applicationData.interPercentage,
+//         interBoard: applicationData.interBoard,
+//         bachelorYear: applicationData.bachelorYear,
+//         bachelorCourse: applicationData.bachelorCourse,
+//         bachelorSpecialization: applicationData.bachelorSpecialization,
+//         bachelorGrade: applicationData.bachelorGrade,
+//         bachelorPercentage: applicationData.bachelorPercentage,
+//         bachelorUniversity: applicationData.bachelorUniversity,
+//         masterYear: applicationData.masterYear,
+//         masterCourse: applicationData.masterCourse,
+//         masterSpecialization: applicationData.masterSpecialization,
+//         masterGrade: applicationData.masterGrade,
+//         masterPercentage: applicationData.masterPercentage,
+//         masterUniversity: applicationData.masterUniversity,
+//         courses: courses ? courses.map((course) => ({ ...course })) : [],
+//         experiences: experiences ? experiences.map((exp) => ({ ...exp })) : [],
+//         references: references ? references.map((ref) => ({ ...ref })) : [],
+//         achievement: applicationData.achievement,
+//         description: applicationData.description,
+//         passportPhoto: passportPhotoUrl,
+//         certification: certificationUrl,
+//         signature: signatureUrl,
+//         submitted: applicationData.submitted,
+//         jobId: postId,
+//       };
 
-      // Add the new application to the job post's `applicants` array
-      jobPost.applicants.push(newApplicationForJob);
-      await jobPost.save({ session });
+//       // Add the new application to the job post's `applicants` array
+//       jobPost.applicants.push(newApplicationForJob);
+//       await jobPost.save({ session });
 
-      // Create the new application object for the applicant's `appliedPositions`
-      const newApplicationForApplicant = {
-        applicationId: newApplicationId, // Ensure applicationId is set here as well
-        postId,
-        applicantId,
-        firstName,
-        middleName: applicationData.middleName,
-        sport: applicationData.sport,
-        lastName,
-        fhName: applicationData.fhName,
-        email,
-        contact,
-        whatsapp: applicationData.whatsapp,
-        gender: applicationData.gender,
-        dob: applicationData.dob,
-        maritalStatus: applicationData.maritalStatus,
-        address: applicationData.address,
-        pincode: applicationData.pincode,
-        country: applicationData.country,
-        state: applicationData.state,
-        district: applicationData.district,
-        isHandicapped: applicationData.isHandicapped,
-        community: applicationData.community,
-        matriculationYear: applicationData.matriculationYear,
-        matriculationGrade: applicationData.matriculationGrade,
-        matriculationPercentage: applicationData.matriculationPercentage,
-        matriculationBoard: applicationData.matriculationBoard,
-        interYear: applicationData.interYear,
-        interGrade: applicationData.interGrade,
-        interPercentage: applicationData.interPercentage,
-        interBoard: applicationData.interBoard,
-        bachelorYear: applicationData.bachelorYear,
-        bachelorCourse: applicationData.bachelorCourse,
-        bachelorSpecialization: applicationData.bachelorSpecialization,
-        bachelorGrade: applicationData.bachelorGrade,
-        bachelorPercentage: applicationData.bachelorPercentage,
-        bachelorUniversity: applicationData.bachelorUniversity,
-        masterYear: applicationData.masterYear,
-        masterCourse: applicationData.masterCourse,
-        masterSpecialization: applicationData.masterSpecialization,
-        masterGrade: applicationData.masterGrade,
-        masterPercentage: applicationData.masterPercentage,
-        masterUniversity: applicationData.masterUniversity,
-        courses: courses ? courses.map((course) => ({ ...course })) : [],
-        experiences: experiences ? experiences.map((exp) => ({ ...exp })) : [],
-        references: references ? references.map((ref) => ({ ...ref })) : [],
-        achievement: applicationData.achievement,
-        description: applicationData.description,
-        passportPhoto: passportPhotoUrl,
-        certification: certificationUrl,
-        signature: signatureUrl,
-        submitted: applicationData.submitted,
-        jobId: postId,
-      };
+//       // Create the new application object for the applicant's `appliedPositions`
+//       const newApplicationForApplicant = {
+//         applicationId: newApplicationId, // Ensure applicationId is set here as well
+//         postId,
+//         applicantId,
+//         firstName,
+//         middleName: applicationData.middleName,
+//         sport: applicationData.sport,
+//         lastName,
+//         fhName: applicationData.fhName,
+//         email,
+//         contact,
+//         whatsapp: applicationData.whatsapp,
+//         gender: applicationData.gender,
+//         dob: applicationData.dob,
+//         maritalStatus: applicationData.maritalStatus,
+//         address: applicationData.address,
+//         pincode: applicationData.pincode,
+//         country: applicationData.country,
+//         state: applicationData.state,
+//         district: applicationData.district,
+//         isHandicapped: applicationData.isHandicapped,
+//         community: applicationData.community,
+//         matriculationYear: applicationData.matriculationYear,
+//         matriculationGrade: applicationData.matriculationGrade,
+//         matriculationPercentage: applicationData.matriculationPercentage,
+//         matriculationBoard: applicationData.matriculationBoard,
+//         interYear: applicationData.interYear,
+//         interGrade: applicationData.interGrade,
+//         interPercentage: applicationData.interPercentage,
+//         interBoard: applicationData.interBoard,
+//         bachelorYear: applicationData.bachelorYear,
+//         bachelorCourse: applicationData.bachelorCourse,
+//         bachelorSpecialization: applicationData.bachelorSpecialization,
+//         bachelorGrade: applicationData.bachelorGrade,
+//         bachelorPercentage: applicationData.bachelorPercentage,
+//         bachelorUniversity: applicationData.bachelorUniversity,
+//         masterYear: applicationData.masterYear,
+//         masterCourse: applicationData.masterCourse,
+//         masterSpecialization: applicationData.masterSpecialization,
+//         masterGrade: applicationData.masterGrade,
+//         masterPercentage: applicationData.masterPercentage,
+//         masterUniversity: applicationData.masterUniversity,
+//         courses: courses ? courses.map((course) => ({ ...course })) : [],
+//         experiences: experiences ? experiences.map((exp) => ({ ...exp })) : [],
+//         references: references ? references.map((ref) => ({ ...ref })) : [],
+//         achievement: applicationData.achievement,
+//         description: applicationData.description,
+//         passportPhoto: passportPhotoUrl,
+//         certification: certificationUrl,
+//         signature: signatureUrl,
+//         submitted: applicationData.submitted,
+//         jobId: postId,
+//       };
 
-      // Add the application to the applicant's `appliedPositions`
-      applicant.appliedPositions.push(newApplicationForApplicant);
-      await applicant.save({ session });
+//       // Add the application to the applicant's `appliedPositions`
+//       applicant.appliedPositions.push(newApplicationForApplicant);
+//       await applicant.save({ session });
 
-      // Commit the transaction
-      await session.commitTransaction();
-      session.endSession();
+//       // Commit the transaction
+//       await session.commitTransaction();
+//       session.endSession();
 
-      res.status(201).json({ message: "Application submitted successfully!" });
-    } catch (error) {
-      // Rollback transaction in case of error
-      await session.abortTransaction();
-      session.endSession();
+//       res.status(201).json({ message: "Application submitted successfully!" });
+//     } catch (error) {
+//       // Rollback transaction in case of error
+//       await session.abortTransaction();
+//       session.endSession();
 
-      console.error("Error applying for job:", error);
-      res
-        .status(500)
-        .json({ message: "Internal server error", error: error.message });
-    } finally {
-      // Clean up local files
-      if (req.files) {
-        Object.values(req.files)
-          .flat()
-          .forEach((file) => fs.unlinkSync(file.path));
-      }
-    }
-  }
-);
+//       console.error("Error applying for job:", error);
+//       res
+//         .status(500)
+//         .json({ message: "Internal server error", error: error.message });
+//     } finally {
+//       // Clean up local files
+//       if (req.files) {
+//         Object.values(req.files)
+//           .flat()
+//           .forEach((file) => fs.unlinkSync(file.path));
+//       }
+//     }
+//   }
+// );
 
 //put route to edit a applied job
 
-app.put(
-  "/api/applicants/application/:applicationId",
-  upload.fields([
-    { name: "passportPhoto", maxCount: 1 },
-    { name: "certification", maxCount: 1 },
-    { name: "signature", maxCount: 1 },
-  ]),
-  async (req, res) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
+app.post("/api/posts/:id/apply", async (req, res) => {
+  const session = await mongoose.startSession(); // Start a session for transactions
+  session.startTransaction(); // Begin transaction
 
-    try {
-      const { applicationId } = req.params;
-      const { jobId } = req.body; // Assuming `jobId` is provided in the request body
-      const files = req.files;
+  try {
+    const postId = req.params.id;
+    // Parse applicationData from the request body
+    // const applicationData = JSON.parse(req.body.applicationData);
+    const applicationData = req.body.applicationData;
+    console.log(req.body); // Log the entire request body
 
-      if (!jobId) {
-        return res.status(400).json({ message: "jobId is required" });
-      }
-      const uploadToS3 = async (file) => {
-        const fileContent = fs.readFileSync(file.path);
-        const params = {
-          Bucket: process.env.S3_BUCKET_NAME,
-          Key: `${Date.now()}_${file.originalname}`,
-          Body: fileContent,
-          ContentType: file.mimetype,
-        };
-        await s3Client.send(new PutObjectCommand(params));
-        return `https://${params.Bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${params.Key}`;
-      };
-
-      const updatedData = JSON.parse(req.body.applicationData);
-
-      // Upload new files to S3 (if any) and obtain URLs
-      let passportPhotoUrl = "",
-        certificationUrl = "",
-        signatureUrl = "";
-      if (files.passportPhoto) {
-        passportPhotoUrl = await uploadToS3(files.passportPhoto[0]);
-      }
-      if (files.certification) {
-        certificationUrl = await uploadToS3(files.certification[0]);
-      }
-      if (files.signature) {
-        signatureUrl = await uploadToS3(files.signature[0]);
-      }
-
-      // Update Applicant's appliedPositions array using applicationId
-      const updateApplicant = {
-        $set: {
-          "appliedPositions.$[elem].applicationId": updatedData.applicationId, // Missing applicationId
-          "appliedPositions.$[elem].firstName": updatedData.firstName,
-          "appliedPositions.$[elem].middleName": updatedData.middleName,
-          "appliedPositions.$[elem].lastName": updatedData.lastName,
-          "appliedPositions.$[elem].sport": updatedData.sport,
-          "appliedPositions.$[elem].fhName": updatedData.fhName,
-          "appliedPositions.$[elem].email": updatedData.email,
-          "appliedPositions.$[elem].contact": updatedData.contact,
-          "appliedPositions.$[elem].whatsapp": updatedData.whatsapp,
-          "appliedPositions.$[elem].gender": updatedData.gender,
-          "appliedPositions.$[elem].dob": updatedData.dob,
-          "appliedPositions.$[elem].maritalStatus": updatedData.maritalStatus,
-          "appliedPositions.$[elem].address": updatedData.address,
-          "appliedPositions.$[elem].pincode": updatedData.pincode,
-          "appliedPositions.$[elem].country": updatedData.country,
-          "appliedPositions.$[elem].state": updatedData.state,
-          "appliedPositions.$[elem].district": updatedData.district,
-          "appliedPositions.$[elem].isHandicapped": updatedData.isHandicapped,
-          "appliedPositions.$[elem].community": updatedData.community,
-          "appliedPositions.$[elem].matriculationYear":
-            updatedData.matriculationYear,
-          "appliedPositions.$[elem].matriculationGrade":
-            updatedData.matriculationGrade,
-          "appliedPositions.$[elem].matriculationPercentage":
-            updatedData.matriculationPercentage,
-          "appliedPositions.$[elem].matriculationBoard":
-            updatedData.matriculationBoard,
-          "appliedPositions.$[elem].interYear": updatedData.interYear,
-          "appliedPositions.$[elem].interGrade": updatedData.interGrade,
-          "appliedPositions.$[elem].interPercentage":
-            updatedData.interPercentage,
-          "appliedPositions.$[elem].interBoard": updatedData.interBoard,
-          "appliedPositions.$[elem].bachelorYear": updatedData.bachelorYear,
-          "appliedPositions.$[elem].bachelorCourse": updatedData.bachelorCourse,
-          "appliedPositions.$[elem].bachelorSpecialization":
-            updatedData.bachelorSpecialization,
-          "appliedPositions.$[elem].bachelorGrade": updatedData.bachelorGrade,
-          "appliedPositions.$[elem].bachelorPercentage":
-            updatedData.bachelorPercentage,
-          "appliedPositions.$[elem].masterYear": updatedData.masterYear,
-          "appliedPositions.$[elem].masterCourse": updatedData.masterCourse,
-          "appliedPositions.$[elem].masterSpecialization":
-            updatedData.masterSpecialization,
-          "appliedPositions.$[elem].masterGrade": updatedData.masterGrade,
-          "appliedPositions.$[elem].masterPercentage":
-            updatedData.masterPercentage,
-          "appliedPositions.$[elem].masterUniversity":
-            updatedData.masterUniversity,
-          "appliedPositions.$[elem].passportPhoto":
-            passportPhotoUrl || updatedData.passportPhoto,
-          "appliedPositions.$[elem].certification":
-            certificationUrl || updatedData.certification,
-          "appliedPositions.$[elem].signature":
-            signatureUrl || updatedData.signature,
-          "appliedPositions.$[elem].courses": updatedData.courses,
-          "appliedPositions.$[elem].experiences": updatedData.experiences,
-          "appliedPositions.$[elem].references": updatedData.references,
-          "appliedPositions.$[elem].achievement": updatedData.achievement,
-          "appliedPositions.$[elem].description": updatedData.description,
-          "appliedPositions.$[elem].submitted": updatedData.submitted, // Missing submitted field
-        },
-      };
-
-      // Update JobPost's applicants array using applicationId
-      const updateJobPost = {
-        $set: {
-          "applicants.$[elem].applicationId": updatedData.applicationId, // Added missing field
-          "applicants.$[elem].firstName": updatedData.firstName,
-          "applicants.$[elem].middleName": updatedData.middleName,
-          "applicants.$[elem].lastName": updatedData.lastName,
-          "applicants.$[elem].fhName": updatedData.fhName,
-          "appliedPositions.$[elem].sport": updatedData.sport,
-          "applicants.$[elem].email": updatedData.email,
-          "applicants.$[elem].contact": updatedData.contact,
-          "applicants.$[elem].whatsapp": updatedData.whatsapp,
-          "applicants.$[elem].gender": updatedData.gender,
-          "applicants.$[elem].dob": updatedData.dob,
-          "applicants.$[elem].maritalStatus": updatedData.maritalStatus,
-          "applicants.$[elem].address": updatedData.address,
-          "applicants.$[elem].pincode": updatedData.pincode,
-          "applicants.$[elem].country": updatedData.country,
-          "applicants.$[elem].state": updatedData.state,
-          "applicants.$[elem].district": updatedData.district,
-          "applicants.$[elem].isHandicapped": updatedData.isHandicapped,
-          "applicants.$[elem].community": updatedData.community,
-          "applicants.$[elem].matriculationYear": updatedData.matriculationYear,
-          "applicants.$[elem].matriculationGrade":
-            updatedData.matriculationGrade,
-          "applicants.$[elem].matriculationPercentage":
-            updatedData.matriculationPercentage,
-          "applicants.$[elem].matriculationBoard":
-            updatedData.matriculationBoard,
-          "applicants.$[elem].interYear": updatedData.interYear,
-          "applicants.$[elem].interGrade": updatedData.interGrade,
-          "applicants.$[elem].interPercentage": updatedData.interPercentage,
-          "applicants.$[elem].interBoard": updatedData.interBoard,
-          "applicants.$[elem].bachelorYear": updatedData.bachelorYear,
-          "applicants.$[elem].bachelorCourse": updatedData.bachelorCourse,
-          "applicants.$[elem].bachelorSpecialization":
-            updatedData.bachelorSpecialization,
-          "applicants.$[elem].bachelorGrade": updatedData.bachelorGrade,
-          "applicants.$[elem].bachelorPercentage":
-            updatedData.bachelorPercentage,
-          "applicants.$[elem].bachelorUniversity":
-            updatedData.bachelorUniversity,
-          "applicants.$[elem].passportPhoto":
-            passportPhotoUrl || updatedData.passportPhoto,
-          "applicants.$[elem].certification":
-            certificationUrl || updatedData.certification,
-          "applicants.$[elem].signature": signatureUrl || updatedData.signature,
-          "applicants.$[elem].courses": updatedData.courses,
-          "applicants.$[elem].experiences": updatedData.experiences,
-          "applicants.$[elem].references": updatedData.references,
-          "applicants.$[elem].achievement": updatedData.achievement,
-          "applicants.$[elem].description": updatedData.description,
-          "applicants.$[elem].submitted": updatedData.submitted, // Added missing submitted field
-        },
-      };
-
-      // Update Applicant
-      await Applicant.updateOne(
-        { "appliedPositions.applicationId": applicationId },
-        updateApplicant,
-        {
-          arrayFilters: [{ "elem.applicationId": applicationId }],
-          session: session,
-        }
-      );
-
-      // Update JobPost
-      await Post.updateOne(
-        { "applicants.applicationId": applicationId },
-        updateJobPost,
-        {
-          arrayFilters: [{ "elem.applicationId": applicationId }],
-          session: session,
-        }
-      );
-
-      // Commit transaction
-      await session.commitTransaction();
-      session.endSession();
-
-      res
-        .status(200)
-        .json({ message: "Applicant and Job post updated successfully" });
-    } catch (error) {
-      await session.abortTransaction();
-      session.endSession();
-
-      console.error("Error updating applicant and job post:", error);
-      res
-        .status(500)
-        .json({ message: "Internal server error", error: error.message });
-    } finally {
-      if (req.files) {
-        Object.values(req.files)
-          .flat()
-          .forEach((file) => fs.unlinkSync(file.path));
-      }
+    // Find the job post by ID
+    const jobPost = await Post.findById(postId).session(session);
+    if (!jobPost) {
+      return res.status(404).json({ message: "Job post not found" });
     }
+
+    // Generate the applicationId as before
+    const sportCodes = {
+      boxing: "BX",
+      athletics: "ATH",
+      swimming: "SW",
+      football: "FB",
+      archery: "ARC",
+      weightlifting: "WL",
+      shooting: "SH",
+      cycling: "CY",
+      wrestling: "WR",
+      taekwondo: "TKD",
+      gymnastics: "GYM",
+      tableTennis: "TT",
+      lawnTennis: "LT",
+      badminton: "BD",
+      wushu: "WS",
+    };
+    const sport = applicationData.sport;
+    const sportCode = sportCodes[sport];
+    const baseApplicationId = applicationData.applicationId;
+    const nextIndex = jobPost.applicants.length + 1;
+    const paddedIndex = nextIndex.toString().padStart(4, "0");
+    const newApplicationId = `${baseApplicationId}-${sportCode}-${paddedIndex}`;
+
+    // Check required fields
+    const { applicantId, firstName, lastName, email, contact } =
+      applicationData;
+    if (!applicantId || !firstName || !lastName || !email || !contact) {
+      return res.status(400).json({
+        message:
+          "All required fields (applicantId, firstName, lastName, email, contact) must be provided.",
+      });
+    }
+
+    // Find the applicant by ID
+    const applicant = await Applicant.findById(applicantId).session(session);
+    if (!applicant) {
+      return res.status(404).json({ message: "Applicant not found" });
+    }
+
+    // Generate pre-signed URLs for client to upload files directly to S3
+    const generatePresignedUrl = async (fileName) => {
+      const command = new PutObjectCommand({
+        Bucket: process.env.S3_BUCKET_NAME,
+        Key: `${Date.now()}_${fileName}`,
+        ContentType: "image/jpeg", // You may adjust this based on expected file types
+      });
+      return await getSignedUrl(s3Client, command, { expiresIn: 900 });
+    };
+
+    // Generate URLs for each required file
+    const passportPhotoUrl = await generatePresignedUrl("passportPhoto");
+    const certificationUrl = await generatePresignedUrl("certification");
+    const signatureUrl = await generatePresignedUrl("signature");
+
+    // Add the new application to the applicant's `appliedPositions`
+    const newApplicationForApplicant = {
+      applicationId: newApplicationId, // Ensure applicationId is set here as well
+      postId,
+      applicantId,
+      firstName,
+      middleName: applicationData.middleName,
+      sport,
+      lastName,
+      fhName: applicationData.fhName,
+      email,
+      contact,
+      whatsapp: applicationData.whatsapp,
+      gender: applicationData.gender,
+      dob: applicationData.dob,
+      maritalStatus: applicationData.maritalStatus,
+      address: applicationData.address,
+      pincode: applicationData.pincode,
+      country: applicationData.country,
+      state: applicationData.state,
+      district: applicationData.district,
+      isHandicapped: applicationData.isHandicapped,
+      community: applicationData.community,
+      matriculationYear: applicationData.matriculationYear,
+      matriculationGrade: applicationData.matriculationGrade,
+      matriculationPercentage: applicationData.matriculationPercentage,
+      matriculationBoard: applicationData.matriculationBoard,
+      interYear: applicationData.interYear,
+      interGrade: applicationData.interGrade,
+      interPercentage: applicationData.interPercentage,
+      interBoard: applicationData.interBoard,
+      bachelorYear: applicationData.bachelorYear,
+      bachelorCourse: applicationData.bachelorCourse,
+      bachelorSpecialization: applicationData.bachelorSpecialization,
+      bachelorGrade: applicationData.bachelorGrade,
+      bachelorPercentage: applicationData.bachelorPercentage,
+      bachelorUniversity: applicationData.bachelorUniversity,
+      masterYear: applicationData.masterYear,
+      masterCourse: applicationData.masterCourse,
+      masterSpecialization: applicationData.masterSpecialization,
+      masterGrade: applicationData.masterGrade,
+      masterPercentage: applicationData.masterPercentage,
+      masterUniversity: applicationData.masterUniversity,
+      courses: applicationData.courses
+        ? applicationData.courses.map((course) => ({ ...course }))
+        : [],
+      experiences: applicationData.experiences
+        ? applicationData.experiences.map((exp) => ({ ...exp }))
+        : [],
+      references: applicationData.references
+        ? applicationData.references.map((ref) => ({ ...ref }))
+        : [],
+      achievement: applicationData.achievement,
+      description: applicationData.description,
+      passportPhoto: passportPhotoUrl,
+      certification: certificationUrl,
+      signature: signatureUrl,
+      submitted: applicationData.submitted,
+      jobId: postId,
+    };
+
+    // console.log(`new application being submitted ${newApplicationForApplicant}`);
+
+    applicant.appliedPositions.push(newApplicationForApplicant);
+    await applicant.save({ session });
+    const newApplicationForJob = {
+      applicationId: newApplicationId, // Ensure applicationId is set here as well
+      postId,
+      applicantId,
+      firstName,
+      middleName: applicationData.middleName,
+      sport,
+      lastName,
+      fhName: applicationData.fhName,
+      email,
+      contact,
+      whatsapp: applicationData.whatsapp,
+      gender: applicationData.gender,
+      dob: applicationData.dob,
+      maritalStatus: applicationData.maritalStatus,
+      address: applicationData.address,
+      pincode: applicationData.pincode,
+      country: applicationData.country,
+      state: applicationData.state,
+      district: applicationData.district,
+      isHandicapped: applicationData.isHandicapped,
+      community: applicationData.community,
+      matriculationYear: applicationData.matriculationYear,
+      matriculationGrade: applicationData.matriculationGrade,
+      matriculationPercentage: applicationData.matriculationPercentage,
+      matriculationBoard: applicationData.matriculationBoard,
+      interYear: applicationData.interYear,
+      interGrade: applicationData.interGrade,
+      interPercentage: applicationData.interPercentage,
+      interBoard: applicationData.interBoard,
+      bachelorYear: applicationData.bachelorYear,
+      bachelorCourse: applicationData.bachelorCourse,
+      bachelorSpecialization: applicationData.bachelorSpecialization,
+      bachelorGrade: applicationData.bachelorGrade,
+      bachelorPercentage: applicationData.bachelorPercentage,
+      bachelorUniversity: applicationData.bachelorUniversity,
+      masterYear: applicationData.masterYear,
+      masterCourse: applicationData.masterCourse,
+      masterSpecialization: applicationData.masterSpecialization,
+      masterGrade: applicationData.masterGrade,
+      masterPercentage: applicationData.masterPercentage,
+      masterUniversity: applicationData.masterUniversity,
+      courses: applicationData.courses
+        ? applicationData.courses.map((course) => ({ ...course }))
+        : [],
+      experiences: applicationData.experiences
+        ? applicationData.experiences.map((exp) => ({ ...exp }))
+        : [],
+      references: applicationData.references
+        ? applicationData.references.map((ref) => ({ ...ref }))
+        : [],
+      achievement: applicationData.achievement,
+      description: applicationData.description,
+      passportPhoto: passportPhotoUrl,
+      certification: certificationUrl,
+      signature: signatureUrl,
+      submitted: applicationData.submitted,
+      jobId: postId,
+    };
+
+    // Add the new application to the job post's `applicants` array
+    jobPost.applicants.push(newApplicationForJob);
+    await jobPost.save({ session });
+
+    // Commit the transaction
+    await session.commitTransaction();
+    session.endSession();
+
+    // Respond to the client with the pre-signed URLs
+    res.status(201).json({
+      message: "Application submitted successfully! Pre-signed URLs generated.",
+      applicationId: newApplicationId,
+      urls: {
+        passportPhotoUrl,
+        certificationUrl,
+        signatureUrl,
+      },
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+
+    console.error("Error applying for job:", error);
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
   }
-);
+});
+
+app.put("/api/applicants/application/:applicationId", async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { applicationId } = req.params;
+    const { jobId, passportPhoto, certification, signature, applicationData } =
+      req.body; // Assuming these fields are provided in the request body
+
+    if (!jobId) {
+      return res.status(400).json({ message: "jobId is required" });
+    }
+
+    // Upload new files to S3 (if any) and obtain URLs
+    const uploadToS3 = async (file) => {
+      const fileContent = fs.readFileSync(file.path);
+      const params = {
+        Bucket: process.env.S3_BUCKET_NAME,
+        Key: `${Date.now()}_${file.originalname}`,
+        Body: fileContent,
+        ContentType: file.mimetype,
+      };
+      await s3Client.send(new PutObjectCommand(params));
+      return `https://${params.Bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${params.Key}`;
+    };
+
+    let passportPhotoUrl = "";
+    let certificationUrl = "";
+    let signatureUrl = "";
+
+    // Check if file paths are provided in the applicationData
+    if (passportPhoto) {
+      passportPhotoUrl = await uploadToS3(passportPhoto);
+    }
+    if (certification) {
+      certificationUrl = await uploadToS3(certification);
+    }
+    if (signature) {
+      signatureUrl = await uploadToS3(signature);
+    }
+
+    const updatedData = applicationData; // Already parsed as JSON
+
+    // Update Applicant's appliedPositions array using applicationId
+    const updateApplicant = {
+      $set: {
+        "appliedPositions.$[elem].applicationId": updatedData.applicationId,
+        "appliedPositions.$[elem].firstName": updatedData.firstName,
+        "appliedPositions.$[elem].middleName": updatedData.middleName,
+        "appliedPositions.$[elem].lastName": updatedData.lastName,
+        "appliedPositions.$[elem].sport": updatedData.sport,
+        "appliedPositions.$[elem].fhName": updatedData.fhName,
+        "appliedPositions.$[elem].email": updatedData.email,
+        "appliedPositions.$[elem].contact": updatedData.contact,
+        "appliedPositions.$[elem].whatsapp": updatedData.whatsapp,
+        "appliedPositions.$[elem].gender": updatedData.gender,
+        "appliedPositions.$[elem].dob": updatedData.dob,
+        "appliedPositions.$[elem].maritalStatus": updatedData.maritalStatus,
+        "appliedPositions.$[elem].address": updatedData.address,
+        "appliedPositions.$[elem].pincode": updatedData.pincode,
+        "appliedPositions.$[elem].country": updatedData.country,
+        "appliedPositions.$[elem].state": updatedData.state,
+        "appliedPositions.$[elem].district": updatedData.district,
+        "appliedPositions.$[elem].isHandicapped": updatedData.isHandicapped,
+        "appliedPositions.$[elem].community": updatedData.community,
+        "appliedPositions.$[elem].matriculationYear":
+          updatedData.matriculationYear,
+        "appliedPositions.$[elem].matriculationGrade":
+          updatedData.matriculationGrade,
+        "appliedPositions.$[elem].matriculationPercentage":
+          updatedData.matriculationPercentage,
+        "appliedPositions.$[elem].matriculationBoard":
+          updatedData.matriculationBoard,
+        "appliedPositions.$[elem].interYear": updatedData.interYear,
+        "appliedPositions.$[elem].interGrade": updatedData.interGrade,
+        "appliedPositions.$[elem].interPercentage": updatedData.interPercentage,
+        "appliedPositions.$[elem].interBoard": updatedData.interBoard,
+        "appliedPositions.$[elem].bachelorYear": updatedData.bachelorYear,
+        "appliedPositions.$[elem].bachelorCourse": updatedData.bachelorCourse,
+        "appliedPositions.$[elem].bachelorSpecialization":
+          updatedData.bachelorSpecialization,
+        "appliedPositions.$[elem].bachelorGrade": updatedData.bachelorGrade,
+        "appliedPositions.$[elem].bachelorPercentage":
+          updatedData.bachelorPercentage,
+        "appliedPositions.$[elem].masterYear": updatedData.masterYear,
+        "appliedPositions.$[elem].masterCourse": updatedData.masterCourse,
+        "appliedPositions.$[elem].masterSpecialization":
+          updatedData.masterSpecialization,
+        "appliedPositions.$[elem].masterGrade": updatedData.masterGrade,
+        "appliedPositions.$[elem].masterPercentage":
+          updatedData.masterPercentage,
+        "appliedPositions.$[elem].masterUniversity":
+          updatedData.masterUniversity,
+        "appliedPositions.$[elem].passportPhoto":
+          passportPhotoUrl || updatedData.passportPhoto,
+        "appliedPositions.$[elem].certification":
+          certificationUrl || updatedData.certification,
+        "appliedPositions.$[elem].signature":
+          signatureUrl || updatedData.signature,
+        "appliedPositions.$[elem].courses": updatedData.courses,
+        "appliedPositions.$[elem].experiences": updatedData.experiences,
+        "appliedPositions.$[elem].references": updatedData.references,
+        "appliedPositions.$[elem].achievement": updatedData.achievement,
+        "appliedPositions.$[elem].description": updatedData.description,
+        "appliedPositions.$[elem].submitted": updatedData.submitted,
+      },
+    };
+
+    // Update JobPost's applicants array using applicationId
+    const updateJobPost = {
+      $set: {
+        "applicants.$[elem].applicationId": updatedData.applicationId,
+        "applicants.$[elem].firstName": updatedData.firstName,
+        "applicants.$[elem].middleName": updatedData.middleName,
+        "applicants.$[elem].lastName": updatedData.lastName,
+        "applicants.$[elem].fhName": updatedData.fhName,
+        "applicants.$[elem].sport": updatedData.sport,
+        "applicants.$[elem].email": updatedData.email,
+        "applicants.$[elem].contact": updatedData.contact,
+        "applicants.$[elem].whatsapp": updatedData.whatsapp,
+        "applicants.$[elem].gender": updatedData.gender,
+        "applicants.$[elem].dob": updatedData.dob,
+        "applicants.$[elem].maritalStatus": updatedData.maritalStatus,
+        "applicants.$[elem].address": updatedData.address,
+        "applicants.$[elem].pincode": updatedData.pincode,
+        "applicants.$[elem].country": updatedData.country,
+        "applicants.$[elem].state": updatedData.state,
+        "applicants.$[elem].district": updatedData.district,
+        "applicants.$[elem].isHandicapped": updatedData.isHandicapped,
+        "applicants.$[elem].community": updatedData.community,
+        "applicants.$[elem].matriculationYear": updatedData.matriculationYear,
+        "applicants.$[elem].matriculationGrade": updatedData.matriculationGrade,
+        "applicants.$[elem].matriculationPercentage":
+          updatedData.matriculationPercentage,
+        "applicants.$[elem].matriculationBoard": updatedData.matriculationBoard,
+        "applicants.$[elem].interYear": updatedData.interYear,
+        "applicants.$[elem].interGrade": updatedData.interGrade,
+        "applicants.$[elem].interPercentage": updatedData.interPercentage,
+        "applicants.$[elem].interBoard": updatedData.interBoard,
+        "applicants.$[elem].bachelorYear": updatedData.bachelorYear,
+        "applicants.$[elem].bachelorCourse": updatedData.bachelorCourse,
+        "applicants.$[elem].bachelorSpecialization":
+          updatedData.bachelorSpecialization,
+        "applicants.$[elem].bachelorGrade": updatedData.bachelorGrade,
+        "applicants.$[elem].bachelorPercentage": updatedData.bachelorPercentage,
+        "applicants.$[elem].bachelorUniversity": updatedData.bachelorUniversity,
+        "applicants.$[elem].passportPhoto":
+          passportPhotoUrl || updatedData.passportPhoto,
+        "applicants.$[elem].certification":
+          certificationUrl || updatedData.certification,
+        "applicants.$[elem].signature": signatureUrl || updatedData.signature,
+        "applicants.$[elem].courses": updatedData.courses,
+        "applicants.$[elem].experiences": updatedData.experiences,
+        "applicants.$[elem].references": updatedData.references,
+        "applicants.$[elem].achievement": updatedData.achievement,
+        "applicants.$[elem].description": updatedData.description,
+        "applicants.$[elem].submitted": updatedData.submitted,
+      },
+    };
+
+    // Update Applicant
+    await Applicant.updateOne(
+      { "appliedPositions.applicationId": applicationId },
+      updateApplicant,
+      {
+        arrayFilters: [{ "elem.applicationId": applicationId }],
+        session: session,
+      }
+    );
+
+    // Update JobPost
+    await Post.updateOne(
+      { "applicants.applicationId": applicationId },
+      updateJobPost,
+      {
+        arrayFilters: [{ "elem.applicationId": applicationId }],
+        session: session,
+      }
+    );
+
+    // Commit transaction
+    await session.commitTransaction();
+    session.endSession();
+
+    res
+      .status(200)
+      .json({ message: "Applicant and Job post updated successfully" });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+
+    console.error("Error updating applicant and job post:", error);
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
+  } finally {
+    // No need to delete files as we're no longer uploading them via multer
+  }
+});
+
 
 // DELETE route: Remove an applicant from a job post
 app.delete(
@@ -1281,4 +1499,3 @@ const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
